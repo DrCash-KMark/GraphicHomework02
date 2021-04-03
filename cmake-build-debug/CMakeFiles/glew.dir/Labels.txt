@@ -1,0 +1,13 @@
+# Target labels
+ glew
+# Source files and their labels
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glew
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glew.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glew-complete.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-install.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-mkdir.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-download.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-update.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-patch.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-configure.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-build.rule

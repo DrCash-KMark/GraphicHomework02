@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glew"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glew.rule"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glew-complete.rule"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-install.rule"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-mkdir.rule"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-download.rule"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-update.rule"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-patch.rule"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-configure.rule"
+		},
+		{
+			"file" : "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-stamp/glew-build.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"glew"
+		],
+		"name" : "glew"
+	}
+}

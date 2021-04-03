@@ -1,0 +1,1 @@
+  -L"D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/src/freeglut/lib/x64"  -L"D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/src/glew/lib/Release/x64"  -lglew32 -lglu32 -lfreeglut -lopengl32 -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 

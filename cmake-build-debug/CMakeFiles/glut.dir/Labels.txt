@@ -1,0 +1,13 @@
+# Target labels
+ glut
+# Source files and their labels
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glut
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glut.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/CMakeFiles/glut-complete.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glut-prefix/src/glut-stamp/glut-install.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glut-prefix/src/glut-stamp/glut-mkdir.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glut-prefix/src/glut-stamp/glut-download.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glut-prefix/src/glut-stamp/glut-update.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glut-prefix/src/glut-stamp/glut-patch.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glut-prefix/src/glut-stamp/glut-configure.rule
+D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glut-prefix/src/glut-stamp/glut-build.rule
