@@ -42,18 +42,17 @@ const char *fragmentSource = R"(
 	struct Hit {
 		float t;
 		vec3 position, normal;
-		int mat;	// material index
 	};
 
 	struct Ray {
 		vec3 start, dir;
 	};
 
-	const int nMaxObjects = 500;
+	const int nMaxObjects = 5;
 
 	uniform vec3 wEye;
 	uniform Light light;
-	uniform Material materials[2];  // diffuse, specular, ambient ref
+	uniform Material materials[1];  // diffuse, specular, ambient ref
 	uniform int nObjects;
 	uniform Sphere objects[nMaxObjects];
 
@@ -84,16 +83,10 @@ const char *fragmentSource = R"(
 		bestHit.t = -1;
 		for (int o = 0; o < nObjects; o++) {
 			Hit hit = intersect(objects[o], ray); //  hit.t < 0 if no intersection
-			hit.mat = 0;	 // half of the objects are rough
 			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))  bestHit = hit;
 		}
 		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
 		return bestHit;
-	}
-
-	bool shadowIntersect(Ray ray) {	// for directional lights
-		for (int o = 0; o < nObjects; o++) if (intersect(objects[o], ray).t > 0) return true; //  hit.t < 0 if no intersection
-		return false;
 	}
 
 	vec3 Fresnel(vec3 F0, vec3 v, vec3 n ) {
@@ -111,9 +104,7 @@ const char *fragmentSource = R"(
 			Hit hit = firstIntersect(ray);
 			if (hit.t < 0) return weight * light.La;
 
-
-
-				weight *= Fresnel(materials[hit.mat].F0, ray.dir, hit.normal);
+				weight *= Fresnel(materials[0].F0, ray.dir, hit.normal);
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
 
@@ -249,8 +240,8 @@ public:
 
         materials.push_back(new Material(F0));
 
-        for (int i = 0; i < 5; i++)
-            objects.push_back(new Sphere(vec3(0.1f*(i/5),  0.1f*(i/5), rnd() - 0.5f), 0.1f));
+        for (int i = 0; i < 2; i++)
+            objects.push_back(new Sphere(vec3((i/2.0f)-0.5f,  0.0f, (i/2.0f)-0.5f), 0.3f));
 
     }
 
