@@ -27,7 +27,6 @@ const char *fragmentSource = R"(
 		vec3 ka, kd, ks;
 		float  shininess;
 		vec3 F0;
-		int rough, reflective;
 	};
 
 	struct Light {
@@ -111,25 +110,13 @@ const char *fragmentSource = R"(
 		for(int d = 0; d < maxdepth; d++) {
 			Hit hit = firstIntersect(ray);
 			if (hit.t < 0) return weight * light.La;
-			if (materials[hit.mat].rough == 1) {
-				outRadiance += weight * materials[hit.mat].ka * light.La;
-				Ray shadowRay;
-				shadowRay.start = hit.position + hit.normal * epsilon;
-				shadowRay.dir = light.direction;
-				float cosTheta = dot(hit.normal, light.direction);
-				if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
-					outRadiance += weight * light.Le * materials[hit.mat].kd * cosTheta;
-					vec3 halfway = normalize(-ray.dir + light.direction);
-					float cosDelta = dot(hit.normal, halfway);
-					if (cosDelta > 0) outRadiance += weight * light.Le * materials[hit.mat].ks * pow(cosDelta, materials[hit.mat].shininess);
-				}
-			}
 
-			if (materials[hit.mat].reflective == 1) {
+
+
 				weight *= Fresnel(materials[hit.mat].F0, ray.dir, hit.normal);
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
-			} else return outRadiance;
+
 		}
 	}
 
@@ -147,29 +134,8 @@ struct Material {
     vec3 ka, kd, ks;
     float  shininess;
     vec3 F0;
-    int rough, reflective;
-};
-
-//---------------------------
-struct RoughMaterial : Material {
-//---------------------------
-    RoughMaterial(vec3 _kd, vec3 _ks, float _shininess) {
-        ka = _kd * M_PI;
-        kd = _kd;
-        ks = _ks;
-        shininess = _shininess;
-        rough = true;
-        reflective = false;
-    }
-};
-
-//---------------------------
-struct SmoothMaterial : Material {
-//---------------------------
-    SmoothMaterial(vec3 _F0) {
+    Material(vec3 _F0) {
         F0 = _F0;
-        rough = false;
-        reflective = true;
     }
 };
 
@@ -228,8 +194,6 @@ public:
             sprintf(name, "materials[%d].ks", mat); setUniform(materials[mat]->ks, name);
             sprintf(name, "materials[%d].shininess", mat); setUniform(materials[mat]->shininess, name);
             sprintf(name, "materials[%d].F0", mat); setUniform(materials[mat]->F0, name);
-            sprintf(name, "materials[%d].rough", mat); setUniform(materials[mat]->rough, name);
-            sprintf(name, "materials[%d].reflective", mat); setUniform(materials[mat]->reflective, name);
         }
     }
 
@@ -283,9 +247,7 @@ public:
         F0.y = (N.y - 1.0) * (N.y - 1.0) + K.y * K.y / (((N.y + 1.0) * (N.y + 1.0) + K.y * K.y));
         F0.z = (N.z - 1.0) * (N.z - 1.0) + K.z * K.z / (((N.z + 1.0) * (N.z + 1.0) + K.z * K.z));
 
-        vec3 kd(0.3f, 0.2f, 0.1f), ks(10, 10, 10);
-        //materials.push_back(new RoughMaterial(kd, ks, 50));
-        materials.push_back(new SmoothMaterial(F0));
+        materials.push_back(new Material(F0));
 
         for (int i = 0; i < 5; i++)
             objects.push_back(new Sphere(vec3(0.1f*(i/5),  0.1f*(i/5), rnd() - 0.5f), 0.1f));
