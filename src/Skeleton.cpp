@@ -48,7 +48,7 @@ const char *fragmentSource = R"(
 		vec3 start, dir;
 	};
 
-	const int nMaxObjects = 5;
+	const int nMaxObjects = 3;
 
 	uniform vec3 wEye;
 	uniform Light light;
@@ -104,6 +104,7 @@ const char *fragmentSource = R"(
 			Hit hit = firstIntersect(ray);
 			if (hit.t < 0) return weight * light.La;
 
+
 				weight *= Fresnel(materials[0].F0, ray.dir, hit.normal);
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
@@ -118,6 +119,12 @@ const char *fragmentSource = R"(
 		fragmentColor = vec4(trace(ray), 1);
 	}
 )";
+
+
+std::vector<vec3> dodecahedron_vertices;
+std::vector< vec2 > dodecahedron_uvs;
+std::vector< vec3 > dodecahedron_normals;
+
 
 //---------------------------
 struct Material {
@@ -292,6 +299,8 @@ void onInitialization() {
     scene.build();
     fullScreenTexturedQuad.create();
 
+
+
     // create program for the GPU
     shader.create(vertexSource, fragmentSource, "fragmentColor");
     shader.Use();
@@ -310,6 +319,7 @@ void onDisplay() {
 
     scene.setUniform(shader);
     fullScreenTexturedQuad.Draw();
+
 
     glutSwapBuffers();									// exchange the two buffers
 }
