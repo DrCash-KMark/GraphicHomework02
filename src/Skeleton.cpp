@@ -1,327 +1,308 @@
 //=============================================================================================
-// Computer Graphics Sample Program: GPU ray casting
+// A beadott program csak ebben a fajlban lehet, a fajl 1 byte-os ASCII karaktereket tartalmazhat, BOM kihuzando.
+// Tilos:
+// - mast "beincludolni", illetve mas konyvtarat hasznalni
+// - faljmuveleteket vegezni a printf-et kiveve
+// - Mashonnan atvett programresszleteket forrasmegjeloles nelkul felhasznalni es
+// - felesleges programsorokat a beadott programban hagyni!!!!!!!
+// - felesleges kommenteket a beadott programba irni a forrasmegjelolest kommentjeit kiveve
+// ---------------------------------------------------------------------------------------------
+// A feladatot ANSI C++ nyelvu forditoprogrammal ellenorizzuk, a Visual Studio-hoz kepesti elteresekrol
+// es a leggyakoribb hibakrol (pl. ideiglenes objektumot nem lehet referencia tipusnak ertekul adni)
+// a hazibeado portal ad egy osszefoglalot.
+// ---------------------------------------------------------------------------------------------
+// A feladatmegoldasokban csak olyan OpenGL fuggvenyek hasznalhatok, amelyek az oran a feladatkiadasig elhangzottak
+// A keretben nem szereplo GLUT fuggvenyek tiltottak.
+//
+// NYILATKOZAT
+// ---------------------------------------------------------------------------------------------
+// Nev    : Karpati Mark Andras
+// Neptun : O1BG0Z
+// ---------------------------------------------------------------------------------------------
+// ezennel kijelentem, hogy a feladatot magam keszitettem, es ha barmilyen segitseget igenybe vettem vagy
+// mas szellemi termeket felhasznaltam, akkor a forrast es az atvett reszt kommentekben egyertelmuen jeloltem.
+// A forrasmegjeloles kotelme vonatkozik az eloadas foliakat es a targy oktatoi, illetve a
+// grafhazi doktor tanacsait kiveve barmilyen csatornan (szoban, irasban, Interneten, stb.) erkezo minden egyeb
+// informaciora (keplet, program, algoritmus, stb.). Kijelentem, hogy a forrasmegjelolessel atvett reszeket is ertem,
+// azok helyessegere matematikai bizonyitast tudok adni. Tisztaban vagyok azzal, hogy az atvett reszek nem szamitanak
+// a sajat kontribucioba, igy a feladat elfogadasarol a tobbi resz mennyisege es minosege alapjan szuletik dontes.
+// Tudomasul veszem, hogy a forrasmegjeloles kotelmenek megsertese eseten a hazifeladatra adhato pontokat
+// negativ elojellel szamoljak el es ezzel parhuzamosan eljaras is indul velem szemben.
 //=============================================================================================
 #include "framework.h"
 
-// vertex shader in GLSL
-const char *vertexSource = R"(
-	#version 450
-    precision highp float;
+const vec3 N = vec3(0.17, 0.35, 1.5);
+const vec3 K = vec3(3.1, 2.7, 1.9);
+const vec3 F0 = (((N.x - 1.0f) * (N.x - 1.0f) + K.x * K.x) / ((N.x + 1.0f) * (N.x + 1.0f) + K.x * K.x),
+        ((N.y - 1.0f) * (N.y - 1.0f) + K.y * K.y) / ((N.y + 1.0f) * (N.y + 1.0f) + K.y * K.y),
+        ((N.z - 1.0f) * (N.z - 1.0f) + K.z * K.z) / ((N.z + 1.0f) * (N.z + 1.0f) + K.z * K.z));
+const float epsilon = 0.0001f;
 
-	uniform vec3 wLookAt, wRight, wUp;          // pos of eye
+float rnd() { return (float) rand() / RAND_MAX; }
 
-	layout(location = 0) in vec2 cCamWindowVertex;	// Attrib Array 0
-	out vec3 p;
-
-	void main() {
-		gl_Position = vec4(cCamWindowVertex, 0, 1);
-		p = wLookAt + wRight * cCamWindowVertex.x + wUp * cCamWindowVertex.y;
-	}
-)";
-// fragment shader in GLSL
-const char *fragmentSource = R"(
-	#version 450
-    precision highp float;
-
-	struct Material {
-		vec3 ka, kd, ks;
-		float  shininess;
-		vec3 F0;
-	};
-
-	struct Light {
-		vec3 direction;
-		vec3 Le, La;
-	};
-
-	struct Sphere {
-		vec3 center;
-		float radius;
-	};
-
-	struct Hit {
-		float t;
-		vec3 position, normal;
-	};
-
-	struct Ray {
-		vec3 start, dir;
-	};
-
-	const int nMaxObjects = 3;
-
-	uniform vec3 wEye;
-	uniform Light light;
-	uniform Material materials[1];  // diffuse, specular, ambient ref
-	uniform int nObjects;
-	uniform Sphere objects[nMaxObjects];
-
-	in  vec3 p;					// point on camera window corresponding to the pixel
-	out vec4 fragmentColor;		// output that goes to the raster memory as told by glBindFragDataLocation
-
-	Hit intersect(const Sphere object, const Ray ray) {
-		Hit hit;
-		hit.t = -1;
-		vec3 dist = ray.start - object.center;
-		float a = dot(ray.dir, ray.dir);
-		float b = dot(dist, ray.dir) * 2.0f;
-		float c = dot(dist, dist) - object.radius * object.radius;
-		float discr = b * b - 4.0f * a * c;
-		if (discr < 0) return hit;
-		float sqrt_discr = sqrt(discr);
-		float t1 = (-b + sqrt_discr) / 2.0f / a;	// t1 >= t2 for sure
-		float t2 = (-b - sqrt_discr) / 2.0f / a;
-		if (t1 <= 0) return hit;
-		hit.t = (t2 > 0) ? t2 : t1;
-		hit.position = ray.start + ray.dir * hit.t;
-		hit.normal = (hit.position - object.center) / object.radius;
-		return hit;
-	}
-
-	Hit firstIntersect(Ray ray) {
-		Hit bestHit;
-		bestHit.t = -1;
-		for (int o = 0; o < nObjects; o++) {
-			Hit hit = intersect(objects[o], ray); //  hit.t < 0 if no intersection
-			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))  bestHit = hit;
-		}
-		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
-		return bestHit;
-	}
-
-	vec3 Fresnel(vec3 F0, vec3 v, vec3 n ) {
-		float cosTheta = 1.0 - dot(-v, n);
-        return F0 + (vec3(1, 1, 1) - F0) * pow(cosTheta, 5);
-	}
-
-	const float epsilon = 0.0001f;
-	const int maxdepth = 5;
-
-	vec3 trace(Ray ray) {
-		vec3 weight = vec3(1, 1, 1);
-		vec3 outRadiance = vec3(0, 0, 0);
-		for(int d = 0; d < maxdepth; d++) {
-			Hit hit = firstIntersect(ray);
-			if (hit.t < 0) return weight * light.La;
-
-
-				weight *= Fresnel(materials[0].F0, ray.dir, hit.normal);
-				ray.start = hit.position + hit.normal * epsilon;
-				ray.dir = reflect(ray.dir, hit.normal);
-
-		}
-	}
-
-	void main() {
-		Ray ray;
-		ray.start = wEye;
-		ray.dir = normalize(p - wEye);
-		fragmentColor = vec4(trace(ray), 1);
-	}
-)";
-
-
-std::vector<vec3> dodecahedron_vertices;
-std::vector< vec2 > dodecahedron_uvs;
-std::vector< vec3 > dodecahedron_normals;
-
-
-//---------------------------
 struct Material {
-//---------------------------
     vec3 ka, kd, ks;
-    float  shininess;
+    float shininess;
     vec3 F0;
-    Material(vec3 _F0) {
-        F0 = _F0;
+
+    Material(vec3 _ka, vec3 _kd, vec3 _ks, float _shininess) {
+        ka = _ka;
+        kd = _kd;
+        ks = _ks;
+        shininess = _shininess;
     }
 };
 
-//---------------------------
-struct Sphere {
-//---------------------------
+struct Hit {
+    float t;
+    vec3 position, normal;
+    Material *material;
+
+    Hit() { t = -1; }
+};
+
+struct Ray {
+    vec3 start, dir;
+
+    Ray(vec3 _start, vec3 _dir) {
+        start = _start;
+        dir = normalize(_dir);
+    }
+};
+
+vec3 fresnel(vec3 F0, vec3 v, vec3 n) {
+    float cosTheata = dot(-v, n);
+    vec3 returnValue;
+    returnValue.x = F0.x + (1 - F0.x) * (pow(1 - cosTheata, 5));
+    returnValue.y = F0.y + (1 - F0.y) * (pow(1 - cosTheata, 5));
+    returnValue.z = F0.z + (1 - F0.z) * (pow(1 - cosTheata, 5));
+    return returnValue;
+}
+
+class Intersectable {
+protected:
+    Material *material;
+public:
+    virtual Hit intersect(const Ray &ray) = 0;
+};
+
+struct Sphere : public Intersectable {
     vec3 center;
     float radius;
 
-    Sphere(const vec3& _center, float _radius) { center = _center; radius = _radius; }
+    Sphere(const vec3 &_center, float _radius, Material *_material) {
+        center = _center;
+        radius = _radius;
+        material = _material;
+    }
+
+    Hit intersect(const Ray &ray) {
+        Hit hit;
+        vec3 dist = ray.start - center;
+        float a = dot(ray.dir, ray.dir);
+        float b = dot(dist, ray.dir) * 2.0f;
+        float c = dot(dist, dist) - radius * radius;
+        float discr = b * b - 4.0f * a * c;
+        if (discr < 0) return hit;
+        float sqrt_discr = sqrtf(discr);
+        float t1 = (-b + sqrt_discr) / 2.0f / a;    // t1 >= t2 for sure
+        float t2 = (-b - sqrt_discr) / 2.0f / a;
+        if (t1 <= 0) return hit;
+        hit.t = (t2 > 0) ? t2 : t1;
+        hit.position = ray.start + ray.dir * hit.t;
+        hit.normal = (hit.position - center) * (1.0f / radius);
+        hit.material = material;
+        return hit;
+    }
 };
 
-//---------------------------
-struct Camera {
-//---------------------------
+class Camera {
     vec3 eye, lookat, right, up;
     float fov;
 public:
-    void set(vec3 _eye, vec3 _lookat, vec3 vup, float _fov) {
+    void set(vec3 _eye, vec3 _lookat, vec3 vup, float fov) {
         eye = _eye;
         lookat = _lookat;
-        fov = _fov;
         vec3 w = eye - lookat;
-        float f = length(w);
-        right = normalize(cross(vup, w)) * f * tanf(fov / 2);
-        up = normalize(cross(w, right)) * f * tanf(fov / 2);
+        float focus = length(w);
+        right = normalize(cross(vup, w)) * focus * tanf(fov / 2);
+        up = normalize(cross(w, right)) * focus * tanf(fov / 2);
     }
+
+    Ray getRay(int X, int Y) {
+        vec3 dir =
+                lookat + right * (2.0f * (X + 0.5f) / windowWidth - 1) + up * (2.0f * (Y + 0.5f) / windowHeight - 1) -
+                eye;
+        return Ray(eye, dir);
+    }
+
     void Animate(float dt) {
-        eye = vec3((eye.x - lookat.x) * cos(dt) + (eye.z - lookat.z) * sin(dt) + lookat.x,
-                   eye.y,
-                   -(eye.x - lookat.x) * sin(dt) + (eye.z - lookat.z) * cos(dt) + lookat.z);
-        set(eye, lookat, up, fov);
+        vec3 d = eye - lookat;
+        eye = vec3(d.x * cos(dt) + d.z * sin(dt), d.y, -d.x * sin(dt) + d.z * cos(dt)) + lookat;
     }
+
 };
 
-//---------------------------
 struct Light {
-//---------------------------
     vec3 direction;
-    vec3 Le, La;
-    Light(vec3 _direction, vec3 _Le, vec3 _La) {
+    vec3 Le;
+
+    Light(vec3 _direction, vec3 _Le) {
         direction = normalize(_direction);
-        Le = _Le; La = _La;
+        Le = _Le;
     }
 };
 
-//---------------------------
-class Shader : public GPUProgram {
-//---------------------------
-public:
-    void setUniformMaterials(const std::vector<Material*>& materials) {
-        char name[256];
-        for (unsigned int mat = 0; mat < materials.size(); mat++) {
-            sprintf(name, "materials[%d].ka", mat); setUniform(materials[mat]->ka, name);
-            sprintf(name, "materials[%d].kd", mat); setUniform(materials[mat]->kd, name);
-            sprintf(name, "materials[%d].ks", mat); setUniform(materials[mat]->ks, name);
-            sprintf(name, "materials[%d].shininess", mat); setUniform(materials[mat]->shininess, name);
-            sprintf(name, "materials[%d].F0", mat); setUniform(materials[mat]->F0, name);
-        }
-    }
 
-    void setUniformLight(Light* light) {
-        setUniform(light->La, "light.La");
-        setUniform(light->Le, "light.Le");
-        setUniform(light->direction, "light.direction");
-    }
 
-    void setUniformCamera(const Camera& camera) {
-        setUniform(camera.eye, "wEye");
-        setUniform(camera.lookat, "wLookAt");
-        setUniform(camera.right, "wRight");
-        setUniform(camera.up, "wUp");
-    }
-
-    void setUniformObjects(const std::vector<Sphere*>& objects) {
-        setUniform((int)objects.size(), "nObjects");
-        char name[256];
-        for (unsigned int o = 0; o < objects.size(); o++) {
-            sprintf(name, "objects[%d].center", o);  setUniform(objects[o]->center, name);
-            sprintf(name, "objects[%d].radius", o);  setUniform(objects[o]->radius, name);
-        }
-    }
-};
-
-float rnd() { return (float)rand() / RAND_MAX; }
-
-//---------------------------
 class Scene {
-//---------------------------
-    std::vector<Sphere *> objects;
+    std::vector<Intersectable *> objects;
     std::vector<Light *> lights;
     Camera camera;
-    std::vector<Material *> materials;
+    vec3 La; //ambient light
 public:
     void build() {
-        vec3 eye = vec3(0, 0, 2);
-        vec3 vup = vec3(0, 1, 0);
-        vec3 lookat = vec3(0, 0, 0);
-        float fov = 45 * (float)M_PI / 180;
+        vec3 eye = vec3(0, 0, 2), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
+        float fov = 45 * M_PI / 180;
         camera.set(eye, lookat, vup, fov);
 
-        lights.push_back(new Light(vec3(1, 1, 1), vec3(3, 3, 3), vec3(0.4f, 0.3f, 0.3f)));
+        La = vec3(0.4f, 0.4f, 0.4f);
+        vec3 lightDirection(1, 1, 1), Le(2, 2, 2);
+        lights.push_back(new Light(lightDirection, Le));
 
-        const vec3 N = vec3(0.17, 0.35, 1.5);
-        const vec3 K = vec3(3.1, 2.7, 1.9);
+        vec3 kd(0.3f, 0.2f, 0.1f), ks(2, 2, 2);
+        Material *material = new Material(kd * M_PI, kd, ks, 50);
 
-        vec3 F0;
-        F0.x = (N.x - 1.0) * (N.x - 1.0) + K.x * K.x / (((N.x + 1.0) * (N.x + 1.0) + K.x * K.x));
-        F0.y = (N.y - 1.0) * (N.y - 1.0) + K.y * K.y / (((N.y + 1.0) * (N.y + 1.0) + K.y * K.y));
-        F0.z = (N.z - 1.0) * (N.z - 1.0) + K.z * K.z / (((N.z + 1.0) * (N.z + 1.0) + K.z * K.z));
-
-        materials.push_back(new Material(F0));
-
-        for (int i = 0; i < 2; i++)
-            objects.push_back(new Sphere(vec3((i/2.0f)-0.5f,  0.0f, (i/2.0f)-0.5f), 0.3f));
-
+        objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.5f, material));
     }
 
-    void setUniform(Shader& shader) {
-        shader.setUniformObjects(objects);
-        shader.setUniformMaterials(materials);
-        shader.setUniformLight(lights[0]);
-        shader.setUniformCamera(camera);
+    void render(std::vector<vec4> &image) {
+        for (int Y = 0; Y < windowHeight; Y++) {
+#pragma omp parallel for
+            for (int X = 0; X < windowWidth; X++) {
+                vec3 color = trace(camera.getRay(X, Y));
+                image[Y * windowWidth + X] = vec4(color.x, color.y, color.z, 1);
+            }
+        }
     }
 
-    void Animate(float dt) { camera.Animate(dt); }
+    Hit firstIntersect(Ray ray) {
+        Hit bestHit;
+        for (Intersectable *object : objects) {
+            Hit hit = object->intersect(ray); //  hit.t < 0 if no intersection
+            if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t)) bestHit = hit;
+        }
+        if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
+        return bestHit;
+    }
+
+    bool shadowIntersect(Ray ray) {    // for directional lights
+        for (Intersectable *object : objects) if (object->intersect(ray).t > 0) return true;
+        return false;
+    }
+
+    vec3 trace(Ray ray, int depth = 0) {
+        Hit hit = firstIntersect(ray);
+        if (hit.t < 0) return La;
+        vec3 outRadiance = hit.material->ka * La;
+        for (Light *light : lights) {
+            Ray shadowRay(hit.position + hit.normal * epsilon, light->direction);
+            float cosTheta = dot(hit.normal, light->direction);
+            if (cosTheta > 0 && !shadowIntersect(shadowRay)) {    // shadow computation
+                outRadiance = outRadiance + light->Le * hit.material->kd * cosTheta;
+                vec3 halfway = normalize(-ray.dir + light->direction);
+                float cosDelta = dot(hit.normal, halfway);
+                if (cosDelta > 0)
+                    outRadiance = outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shininess);
+            }
+        }
+        return outRadiance;
+    }
 };
 
-Shader shader; // vertex and fragment shaders
+GPUProgram gpuProgram; // vertex and fragment shaders
 Scene scene;
 
-//---------------------------
-class FullScreenTexturedQuad {
-//---------------------------
-    unsigned int vao = 0;	// vertex array object id and texture id
-public:
-    void create() {
-        glGenVertexArrays(1, &vao);	// create 1 vertex array object
-        glBindVertexArray(vao);		// make it active
+// vertex shader in GLSL
+const char *vertexSource = R"(
+	#version 330
+    precision highp float;
 
-        unsigned int vbo;		// vertex buffer objects
-        glGenBuffers(1, &vbo);	// Generate 1 vertex buffer objects
+	layout(location = 0) in vec2 cVertexPosition;	// Attrib Array 0
+	out vec2 texcoord;
+
+	void main() {
+		texcoord = (cVertexPosition + vec2(1, 1))/2;							// -1,1 to 0,1
+		gl_Position = vec4(cVertexPosition.x, cVertexPosition.y, 0, 1); 		// transform to clipping space
+	}
+)";
+
+// fragment shader in GLSL
+const char *fragmentSource = R"(
+	#version 330
+    precision highp float;
+
+	uniform sampler2D textureUnit;
+	in  vec2 texcoord;			// interpolated texture coordinates
+	out vec4 fragmentColor;		// output that goes to the raster memory as told by glBindFragDataLocation
+
+	void main() {
+		fragmentColor = texture(textureUnit, texcoord);
+	}
+)";
+
+class FullScreenTexturedQuad {
+    unsigned int vao;    // vertex array object id and texture id
+    Texture texture;
+public:
+    FullScreenTexturedQuad(int windowWidth, int windowHeight, std::vector<vec4> &image)
+            : texture(windowWidth, windowHeight, image) {
+        glGenVertexArrays(1, &vao);    // create 1 vertex array object
+        glBindVertexArray(vao);        // make it active
+
+        unsigned int vbo;        // vertex buffer objects
+        glGenBuffers(1, &vbo);    // Generate 1 vertex buffer objects
 
         // vertex coordinates: vbo0 -> Attrib Array 0 -> vertexPosition of the vertex shader
         glBindBuffer(GL_ARRAY_BUFFER, vbo); // make it active, it is an array
-        float vertexCoords[] = { -1, -1,  1, -1,  1, 1,  -1, 1 };	// two triangles forming a quad
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertexCoords), vertexCoords, GL_STATIC_DRAW);	   // copy to that part of the memory which is not modified
+        float vertexCoords[] = {-1, -1, 1, -1, 1, 1, -1, 1};    // two triangles forming a quad
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertexCoords), vertexCoords,
+                     GL_STATIC_DRAW);       // copy to that part of the memory which is not modified
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);     // stride and offset: it is tightly packed
     }
 
     void Draw() {
-        glBindVertexArray(vao);	// make the vao and its vbos active playing the role of the data source
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);	// draw two triangles forming a quad
+        glBindVertexArray(vao);    // make the vao and its vbos active playing the role of the data source
+        gpuProgram.setUniform(texture, "textureUnit");
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);    // draw two triangles forming a quad
     }
 };
 
-FullScreenTexturedQuad fullScreenTexturedQuad;
+FullScreenTexturedQuad *fullScreenTexturedQuad;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
     glViewport(0, 0, windowWidth, windowHeight);
     scene.build();
-    fullScreenTexturedQuad.create();
 
+    std::vector<vec4> image(windowWidth * windowHeight);
+    long timeStart = glutGet(GLUT_ELAPSED_TIME);
+    scene.render(image);
+    long timeEnd = glutGet(GLUT_ELAPSED_TIME);
+    printf("Rendering time: %d milliseconds\n", (timeEnd - timeStart));
 
+    // copy image to GPU as a texture
+    fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight, image);
 
     // create program for the GPU
-    shader.create(vertexSource, fragmentSource, "fragmentColor");
-    shader.Use();
+    gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
 }
 
 // Window has become invalid: Redraw
 void onDisplay() {
-    static int nFrames = 0;
-    nFrames++;
-    static long tStart = glutGet(GLUT_ELAPSED_TIME);
-    long tEnd = glutGet(GLUT_ELAPSED_TIME);
-    printf("%d msec\r", (tEnd - tStart) / nFrames);
-
-    glClearColor(1.0f, 0.5f, 0.8f, 1.0f);							// background color
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
-
-    scene.setUniform(shader);
-    fullScreenTexturedQuad.Draw();
-
-
-    glutSwapBuffers();									// exchange the two buffers
+    fullScreenTexturedQuad->Draw();
+    glutSwapBuffers();                                    // exchange the two buffers
 }
 
 // Key of ASCII code pressed
@@ -343,6 +324,4 @@ void onMouseMotion(int pX, int pY) {
 
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
-    scene.Animate(0.01f);
-    glutPostRedisplay();
 }
