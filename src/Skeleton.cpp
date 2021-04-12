@@ -132,20 +132,20 @@ struct Quadrics : public Intersectable {
 
         float t1 = (-b + sqrt_discr) / 2.0f / a;
         vec3 p1 = ray.start + ray.dir * t1;
-        float dp1=sqrtf(pow(pointOfSphare.x-p1.x,2)+
-                                pow(pointOfSphare.y-p1.y,2)+
-                                pow(pointOfSphare.z-p1.z,2)); //distance of point1
-        if  (dp1>radius) {
-            t1=-1;
+        float dp1 = sqrtf(pow(pointOfSphare.x - p1.x, 2) +
+                          pow(pointOfSphare.y - p1.y, 2) +
+                          pow(pointOfSphare.z - p1.z, 2)); //distance of point1
+        if (dp1 > radius) {
+            t1 = -1;
         }
 
         float t2 = (-b + sqrt_discr) / 2.0f / a;
         vec3 p2 = ray.start + ray.dir * t1;
-        float dp2=sqrtf(pow(pointOfSphare.x-p2.x,2)+
-                        pow(pointOfSphare.y-p2.y,2)+
-                        pow(pointOfSphare.z-p2.z,2)); //distance of point2
-        if  (dp2>radius) {
-            t2=-1;
+        float dp2 = sqrtf(pow(pointOfSphare.x - p2.x, 2) +
+                          pow(pointOfSphare.y - p2.y, 2) +
+                          pow(pointOfSphare.z - p2.z, 2)); //distance of point2
+        if (dp2 > radius) {
+            t2 = -1;
         }
 
         if (t1 <= 0 && t2 <= 0) {
@@ -262,11 +262,12 @@ public:
         /*
          * need to learn how to make parameters
          */
-        mat4 paraboloid = mat4(9, 0, 0, 0,
-                               0, 16, 0, 0,
-                               0, 0, 0, 4,
-                               0, 0, 4, 0);
-        objects.push_back(new Quadrics(paraboloid, vec3(-0.2,0.0,0.2), 0.2, vec3(-0.2, -0.0, 0.2), material02));
+        float a = 0.2, b = 2.5, c = 0.5;
+        mat4 paraboloid = mat4(a, 0, 0, 0,
+                               0, b, 0, 0,
+                               0, 0, 0, -c,
+                               0, 0, -c, 0);
+        objects.push_back(new Quadrics(paraboloid, vec3(-0.2, 0.0, 0.2), 0.2, vec3(-0.2, -0.0, 0.2), material02));
 
         //objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material02));
         objects.push_back(new Sphere(vec3(0.1f, 0.2f, 0.3f), 0.1f, material01));
@@ -328,7 +329,7 @@ public:
         if (hit.material->type == REFLECTIVE) {
             vec3 reflectedDir = ray.dir - hit.normal * dot(hit.normal, ray.dir) * 2.0f;
             vec3 F = fresnel(hit.material->F0, ray.dir, hit.normal);
-            outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * epsilon, reflectedDir),depth+1) * F;
+            outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * epsilon, reflectedDir), depth + 1) * F;
         }
 
         return outRadiance;
