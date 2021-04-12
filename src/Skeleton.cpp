@@ -89,7 +89,7 @@ public:
 struct Sphere : public Intersectable {
     vec3 center;
     float radius;
-
+public:
     Sphere(const vec3 &_center, float _radius, Material *_material) {
         center = _center;
         radius = _radius;
@@ -120,13 +120,14 @@ class Camera {
     vec3 eye, lookat, right, up;
     float fov;
 public:
-    void set(vec3 _eye, vec3 _lookat, vec3 vup, float fov) {
+    void set(vec3 _eye, vec3 _lookat, vec3 vup, float _fov) {
         eye = _eye;
         lookat = _lookat;
+        fov=_fov;
         vec3 w = eye - lookat;
-        float focus = length(w);
-        right = normalize(cross(vup, w)) * focus * tanf(fov / 2);
-        up = normalize(cross(w, right)) * focus * tanf(fov / 2);
+        float windowsSize = length(w)*tanf(fov/2);
+        right = normalize(cross(vup, w)) *windowsSize;
+        up = normalize(cross(w, right)) * windowsSize;
     }
 
     Ray getRay(int X, int Y) {
@@ -138,7 +139,8 @@ public:
 
     void Animate(float dt) {
         vec3 d = eye - lookat;
-        eye = vec3(d.x * cos(dt) + d.z * sin(dt), d.y, -d.x * sin(dt) + d.z * cos(dt)) + lookat;
+        eye = vec3(d.x * cosf(dt) + d.z * sinf(dt), d.y, -d.x * sinf(dt) + d.z * cosf(dt)) + lookat;
+        set(eye,lookat,up,fov);
     }
 
 };
@@ -152,7 +154,6 @@ struct Light {
         Le = _Le;
     }
 };
-
 
 
 class Scene {
@@ -173,7 +174,7 @@ public:
         vec3 kd(0.3f, 0.2f, 0.1f), ks(2, 2, 2);
         Material *material = new Material(kd * M_PI, kd, ks, 50);
 
-        objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.5f, material));
+        objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material));
     }
 
     void render(std::vector<vec4> &image) {
@@ -190,9 +191,14 @@ public:
         Hit bestHit;
         for (Intersectable *object : objects) {
             Hit hit = object->intersect(ray); //  hit.t < 0 if no intersection
-            if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t)) bestHit = hit;
+            if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t)) {
+                bestHit = hit;
+            }
         }
-        if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
+        if (dot(ray.dir, bestHit.normal) > 0) {
+            bestHit.normal = bestHit.normal * (-1);
+        }
+
         return bestHit;
     }
 
@@ -212,12 +218,16 @@ public:
                 outRadiance = outRadiance + light->Le * hit.material->kd * cosTheta;
                 vec3 halfway = normalize(-ray.dir + light->direction);
                 float cosDelta = dot(hit.normal, halfway);
-                if (cosDelta > 0)
+                if (cosDelta > 0) {
                     outRadiance = outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shininess);
+                }
+
             }
         }
         return outRadiance;
     }
+
+    void Animate(float dt) { camera.Animate(dt); }
 };
 
 GPUProgram gpuProgram; // vertex and fragment shaders
@@ -252,11 +262,10 @@ const char *fragmentSource = R"(
 )";
 
 class FullScreenTexturedQuad {
-    unsigned int vao;    // vertex array object id and texture id
-    Texture texture;
+    unsigned int vao=0, textureId=0;    // vertex array object id and texture id
 public:
-    FullScreenTexturedQuad(int windowWidth, int windowHeight, std::vector<vec4> &image)
-            : texture(windowWidth, windowHeight, image) {
+    FullScreenTexturedQuad(int windowWidth, int windowHeight)
+    {
         glGenVertexArrays(1, &vao);    // create 1 vertex array object
         glBindVertexArray(vao);        // make it active
 
@@ -270,11 +279,27 @@ public:
                      GL_STATIC_DRAW);       // copy to that part of the memory which is not modified
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);     // stride and offset: it is tightly packed
+
+        glGenTextures(1,&textureId);
+        glBindTexture(GL_TEXTURE_2D,textureId);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    }
+
+    void LoadTexture(std::vector<vec4>& image) {
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,windowWidth,windowHeight,0,GL_RGBA,GL_FLOAT, &image[0]);
     }
 
     void Draw() {
         glBindVertexArray(vao);    // make the vao and its vbos active playing the role of the data source
-        gpuProgram.setUniform(texture, "textureUnit");
+        int location=glGetUniformLocation(gpuProgram.getId(),"textureUnit");
+        const unsigned int textureUnit=0;
+        if (location>=0) {
+            glUniform1i(location,textureUnit);
+            glActiveTexture(GL_TEXTURE0+textureUnit);
+            glBindTexture(GL_TEXTURE_2D, textureId);
+        }
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);    // draw two triangles forming a quad
     }
 };
@@ -286,14 +311,8 @@ void onInitialization() {
     glViewport(0, 0, windowWidth, windowHeight);
     scene.build();
 
-    std::vector<vec4> image(windowWidth * windowHeight);
-    long timeStart = glutGet(GLUT_ELAPSED_TIME);
-    scene.render(image);
-    long timeEnd = glutGet(GLUT_ELAPSED_TIME);
-    printf("Rendering time: %d milliseconds\n", (timeEnd - timeStart));
-
     // copy image to GPU as a texture
-    fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight, image);
+    fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight);
 
     // create program for the GPU
     gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
@@ -301,6 +320,9 @@ void onInitialization() {
 
 // Window has become invalid: Redraw
 void onDisplay() {
+    std::vector<vec4> image(windowWidth*windowHeight);
+    scene.render(image);
+    fullScreenTexturedQuad->LoadTexture(image);
     fullScreenTexturedQuad->Draw();
     glutSwapBuffers();                                    // exchange the two buffers
 }
@@ -324,4 +346,6 @@ void onMouseMotion(int pX, int pY) {
 
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
+    scene.Animate(0.1f);
+    glutPostRedisplay();
 }
