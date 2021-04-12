@@ -32,24 +32,41 @@
 #include "framework.h"
 
 const vec3 N = vec3(0.17, 0.35, 1.5);
-const vec3 K = vec3(3.1, 2.7, 1.9);
-const vec3 F0 = (((N.x - 1.0f) * (N.x - 1.0f) + K.x * K.x) / ((N.x + 1.0f) * (N.x + 1.0f) + K.x * K.x),
-        ((N.y - 1.0f) * (N.y - 1.0f) + K.y * K.y) / ((N.y + 1.0f) * (N.y + 1.0f) + K.y * K.y),
-        ((N.z - 1.0f) * (N.z - 1.0f) + K.z * K.z) / ((N.z + 1.0f) * (N.z + 1.0f) + K.z * K.z));
+const vec3 KAPPA = vec3(3.1, 2.7, 1.9);
+//const vec3 F0 = ((N - 1.0f) * (N - 1.0f) + K * K) / ((N + 1.0f) * (N + 1.0f) + K * K);
 const float epsilon = 0.0001f;
+const vec3 one(1, 1, 1);
 
 float rnd() { return (float) rand() / RAND_MAX; }
 
-struct Material {
-    vec3 ka, kd, ks;
-    float shininess;
-    vec3 F0;
+enum MaterialType {
+    ROUGH, REFLECTIVE
+};
 
-    Material(vec3 _ka, vec3 _kd, vec3 _ks, float _shininess) {
-        ka = _ka;
+struct Material {
+    vec3 ka, kd, ks, F0;
+    float shininess;
+    MaterialType type;
+
+    Material(MaterialType t) { type = t; }
+};
+
+struct RoughMaterial : Material {
+    RoughMaterial(vec3 _kd, vec3 _ks, float _shininess) : Material(ROUGH) {
+        ka = _kd * M_PI;
         kd = _kd;
         ks = _ks;
         shininess = _shininess;
+    }
+};
+
+vec3 operator/(vec3 num, vec3 denom) {
+    return vec3(num.x / denom.x, num.y / denom.y, num.z / denom.z);
+}
+
+struct ReflectiveMaterial : Material {
+    ReflectiveMaterial(vec3 n, vec3 kappa) : Material(REFLECTIVE) {
+        F0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
     }
 };
 
@@ -72,10 +89,8 @@ struct Ray {
 
 vec3 fresnel(vec3 F0, vec3 v, vec3 n) {
     float cosTheata = dot(-v, n);
-    vec3 returnValue;
-    returnValue.x = F0.x + (1 - F0.x) * (pow(1 - cosTheata, 5));
-    returnValue.y = F0.y + (1 - F0.y) * (pow(1 - cosTheata, 5));
-    returnValue.z = F0.z + (1 - F0.z) * (pow(1 - cosTheata, 5));
+    vec3 one(1, 1, 1);
+    vec3 returnValue = F0 + (one - F0) * (pow(1 - cosTheata, 5));
     return returnValue;
 }
 
@@ -84,6 +99,75 @@ protected:
     Material *material;
 public:
     virtual Hit intersect(const Ray &ray) = 0;
+};
+
+
+struct Quadrics : public Intersectable {
+    mat4 Q;
+    vec3 pointOfSphare;
+    float radius;
+    vec3 translation;
+
+    Quadrics(mat4 &_Q, vec3 _pointOfSphare, float _radius, vec3 _translation, Material *_material) {
+        Q = _Q;
+        pointOfSphare = _pointOfSphare;
+        radius = _radius;
+        translation = _translation;
+        material = _material;
+    }
+
+    vec3 gradf(vec3 r) {
+        vec4 g = vec4(r.x, r.y, r.z, 1) * Q * 2;
+        return vec3(g.x, g.y, g.z);
+    }
+
+    Hit intersect(const Ray &ray) {
+        Hit hit;
+        vec3 start = ray.start - translation;
+        vec4 S(start.x, start.y, start.z, 1), D(ray.dir.x, ray.dir.y, ray.dir.z, 0);
+        float a = dot(D * Q, D), b = dot(S * Q, D) * 2, c = dot(S * Q, S);
+        float discr = b * b - 4.0f * a * c;
+        if (discr < 0) return hit;
+        float sqrt_discr = sqrtf(discr);
+
+        float t1 = (-b + sqrt_discr) / 2.0f / a;
+        vec3 p1 = ray.start + ray.dir * t1;
+        float dp1=sqrtf(pow(pointOfSphare.x-p1.x,2)+
+                                pow(pointOfSphare.y-p1.y,2)+
+                                pow(pointOfSphare.z-p1.z,2)); //distance of point1
+        if  (dp1>radius) {
+            t1=-1;
+        }
+
+        float t2 = (-b + sqrt_discr) / 2.0f / a;
+        vec3 p2 = ray.start + ray.dir * t1;
+        float dp2=sqrtf(pow(pointOfSphare.x-p2.x,2)+
+                        pow(pointOfSphare.y-p2.y,2)+
+                        pow(pointOfSphare.z-p2.z,2)); //distance of point2
+        if  (dp2>radius) {
+            t2=-1;
+        }
+
+        if (t1 <= 0 && t2 <= 0) {
+            return hit;
+        }
+        if (t1 <= 0) {
+            hit.t = t2;
+        } else if (t2 <= 0) {
+            hit.t = t1;
+        } else if (t2 < t1) {
+            hit.t = t2;
+        } else {
+            hit.t = t1;
+        }
+        hit.position = start + ray.dir * hit.t;
+        hit.normal = normalize(gradf(hit.position));
+        hit.position = hit.position + translation;
+        hit.material = material;
+        return hit;
+    }
+
+
 };
 
 struct Sphere : public Intersectable {
@@ -123,10 +207,10 @@ public:
     void set(vec3 _eye, vec3 _lookat, vec3 vup, float _fov) {
         eye = _eye;
         lookat = _lookat;
-        fov=_fov;
+        fov = _fov;
         vec3 w = eye - lookat;
-        float windowsSize = length(w)*tanf(fov/2);
-        right = normalize(cross(vup, w)) *windowsSize;
+        float windowsSize = length(w) * tanf(fov / 2);
+        right = normalize(cross(vup, w)) * windowsSize;
         up = normalize(cross(w, right)) * windowsSize;
     }
 
@@ -140,7 +224,7 @@ public:
     void Animate(float dt) {
         vec3 d = eye - lookat;
         eye = vec3(d.x * cosf(dt) + d.z * sinf(dt), d.y, -d.x * sinf(dt) + d.z * cosf(dt)) + lookat;
-        set(eye,lookat,up,fov);
+        set(eye, lookat, up, fov);
     }
 
 };
@@ -172,9 +256,20 @@ public:
         lights.push_back(new Light(lightDirection, Le));
 
         vec3 kd(0.3f, 0.2f, 0.1f), ks(2, 2, 2);
-        Material *material = new Material(kd * M_PI, kd, ks, 50);
+        Material *material01 = new RoughMaterial(kd, ks, 50);
+        Material *material02 = new ReflectiveMaterial(N, KAPPA);
 
-        objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material));
+        /*
+         * need to learn how to make parameters
+         */
+        mat4 paraboloid = mat4(9, 0, 0, 0,
+                               0, 16, 0, 0,
+                               0, 0, 0, 4,
+                               0, 0, 4, 0);
+        objects.push_back(new Quadrics(paraboloid, vec3(-0.2,0.0,0.2), 0.2, vec3(-0.2, -0.0, 0.2), material02));
+
+        //objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material02));
+        objects.push_back(new Sphere(vec3(0.1f, 0.2f, 0.3f), 0.1f, material01));
     }
 
     void render(std::vector<vec4> &image) {
@@ -208,22 +303,34 @@ public:
     }
 
     vec3 trace(Ray ray, int depth = 0) {
+        if (depth > 5) return La;
         Hit hit = firstIntersect(ray);
         if (hit.t < 0) return La;
-        vec3 outRadiance = hit.material->ka * La;
-        for (Light *light : lights) {
-            Ray shadowRay(hit.position + hit.normal * epsilon, light->direction);
-            float cosTheta = dot(hit.normal, light->direction);
-            if (cosTheta > 0 && !shadowIntersect(shadowRay)) {    // shadow computation
-                outRadiance = outRadiance + light->Le * hit.material->kd * cosTheta;
-                vec3 halfway = normalize(-ray.dir + light->direction);
-                float cosDelta = dot(hit.normal, halfway);
-                if (cosDelta > 0) {
-                    outRadiance = outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shininess);
-                }
 
+        vec3 outRadiance(0, 0, 0);
+        if (hit.material->type == ROUGH) {
+            outRadiance = hit.material->ka * La;
+            for (Light *light : lights) {
+                Ray shadowRay(hit.position + hit.normal * epsilon, light->direction);
+                float cosTheta = dot(hit.normal, light->direction);
+                if (cosTheta > 0 && !shadowIntersect(shadowRay)) {    // shadow computation
+                    outRadiance = outRadiance + light->Le * hit.material->kd * cosTheta;
+                    vec3 halfway = normalize(-ray.dir + light->direction);
+                    float cosDelta = dot(hit.normal, halfway);
+                    if (cosDelta > 0) {
+                        outRadiance =
+                                outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shininess);
+                    }
+
+                }
             }
         }
+        if (hit.material->type == REFLECTIVE) {
+            vec3 reflectedDir = ray.dir - hit.normal * dot(hit.normal, ray.dir) * 2.0f;
+            vec3 F = fresnel(hit.material->F0, ray.dir, hit.normal);
+            outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * epsilon, reflectedDir),depth+1) * F;
+        }
+
         return outRadiance;
     }
 
@@ -262,10 +369,9 @@ const char *fragmentSource = R"(
 )";
 
 class FullScreenTexturedQuad {
-    unsigned int vao=0, textureId=0;    // vertex array object id and texture id
+    unsigned int vao = 0, textureId = 0;    // vertex array object id and texture id
 public:
-    FullScreenTexturedQuad(int windowWidth, int windowHeight)
-    {
+    FullScreenTexturedQuad(int windowWidth, int windowHeight) {
         glGenVertexArrays(1, &vao);    // create 1 vertex array object
         glBindVertexArray(vao);        // make it active
 
@@ -280,24 +386,24 @@ public:
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);     // stride and offset: it is tightly packed
 
-        glGenTextures(1,&textureId);
-        glBindTexture(GL_TEXTURE_2D,textureId);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+        glGenTextures(1, &textureId);
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
 
-    void LoadTexture(std::vector<vec4>& image) {
+    void LoadTexture(std::vector<vec4> &image) {
         glBindTexture(GL_TEXTURE_2D, textureId);
-        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,windowWidth,windowHeight,0,GL_RGBA,GL_FLOAT, &image[0]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowWidth, windowHeight, 0, GL_RGBA, GL_FLOAT, &image[0]);
     }
 
     void Draw() {
         glBindVertexArray(vao);    // make the vao and its vbos active playing the role of the data source
-        int location=glGetUniformLocation(gpuProgram.getId(),"textureUnit");
-        const unsigned int textureUnit=0;
-        if (location>=0) {
-            glUniform1i(location,textureUnit);
-            glActiveTexture(GL_TEXTURE0+textureUnit);
+        int location = glGetUniformLocation(gpuProgram.getId(), "textureUnit");
+        const unsigned int textureUnit = 0;
+        if (location >= 0) {
+            glUniform1i(location, textureUnit);
+            glActiveTexture(GL_TEXTURE0 + textureUnit);
             glBindTexture(GL_TEXTURE_2D, textureId);
         }
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);    // draw two triangles forming a quad
@@ -320,7 +426,7 @@ void onInitialization() {
 
 // Window has become invalid: Redraw
 void onDisplay() {
-    std::vector<vec4> image(windowWidth*windowHeight);
+    std::vector<vec4> image(windowWidth * windowHeight);
     scene.render(image);
     fullScreenTexturedQuad->LoadTexture(image);
     fullScreenTexturedQuad->Draw();
