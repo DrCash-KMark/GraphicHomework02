@@ -36,6 +36,8 @@ const vec3 KAPPA = vec3(3.1, 2.7, 1.9);
 //const vec3 F0 = ((N - 1.0f) * (N - 1.0f) + K * K) / ((N + 1.0f) * (N + 1.0f) + K * K);
 const float epsilon = 0.0001f;
 const vec3 one(1, 1, 1);
+//do i need this?
+const float scale = 1.0f;
 
 float rnd() { return (float) rand() / RAND_MAX; }
 
@@ -200,6 +202,72 @@ public:
     }
 };
 
+struct ConvexPolyhedron : public Intersectable {
+    //TODO
+    static const int objFaces = 12;
+    /*vec3 v[20];
+    int planes[objFaces * 3];//12*5*/
+    std::vector<vec3> v;
+    std::vector<int> planes;
+public:
+    ConvexPolyhedron() {
+        //no better idea in the night
+        v = {vec3(0, 0.618, 1.618), vec3(0, -0.618, 1.618), vec3(0, -0.618, -1.618),
+             vec3(0, 0.618, -1.618), vec3(1.618, 0, 0.618), vec3(-1.618, 0, 0.618),
+             vec3(-1.618, 0, -0.618), vec3(1.618, 0, -0.618), vec3(0.618, 1.618, 0),
+             vec3(-0.618, 1.618, 0), vec3(-0.618, -1.618, 0), vec3(0.618, -1.618, 0),
+             vec3(1, 1, 1), vec3(-1, 1, 1), vec3(-1, -1, 1), vec3(1, -1, 1),
+             vec3(1, -1, -1), vec3(1, 1, -1), vec3(-1, 1, -1), vec3(-1, -1, -1)};
+        planes = {
+                1, 2, 16, 5, 13, 1, 13, 9, 10, 14,
+                1, 14, 6, 15, 2, 2, 15, 11, 12, 16,
+                3, 4, 18, 8, 17, 3, 17, 12, 11, 20,
+                3, 20, 7, 19, 4, 19, 10, 9, 18, 4,
+                16, 12, 17, 8, 5, 5, 8, 18, 9, 13,
+                14, 10, 19, 7, 6, 6, 7, 20, 11, 15
+        };
+    }
+
+    void getObjPlane(int i, float scale, vec3 p, vec3 normal) {
+        vec3 p1 = v[planes[3 * i] - 1], p2 = v[planes[3 * i + 1] - 1], p3 = v[planes[3 * i + 2] - 1];
+        normal = cross(p2 - p1, p3 - p1);
+        if (dot(p1, normal) < 0) {
+            normal = -normal;
+        }
+        p = p1 * scale + vec3(0, 0, 0);//we do not need to translat it
+    }
+
+    Hit intersect(const Ray &ray) {
+        Hit hit;
+        for (int i = 0; i < objFaces; ++i) {
+            vec3 p1, normal;
+            getObjPlane(i, scale, p1, normal);
+            float ti = abs(dot(normal, ray.dir)) > epsilon ? dot(p1 - ray.start, normal) / dot(normal, ray.dir) : -1;
+            if (ti <= epsilon || (ti > hit.t && hit.t > 0)) {
+                continue;
+            }
+            vec3 printersect = ray.start + ray.dir * ti;
+            bool outside = false;
+            for (int j = 0; j < objFaces || !outside; ++j) {
+                if (i == j) {
+                    continue;
+                }
+                vec3 p11, n;
+                getObjPlane(j, scale, p11, n);
+                if (dot(n, printersect - p11) > 0) {
+                    outside = true;
+                }
+            }
+            if (!outside) {
+                hit.t = ti;
+                hit.position = printersect;
+            }
+        }
+        return hit;
+    }
+
+};
+
 class Camera {
     vec3 eye, lookat, right, up;
     float fov;
@@ -262,15 +330,16 @@ public:
         /*
          * need to learn how to make parameters
          */
-        float a = 0.2, b = 2.5, c = 0.5;
+        float a = 1.5, b = -2.5, c = 0.5;
         mat4 paraboloid = mat4(a, 0, 0, 0,
                                0, b, 0, 0,
                                0, 0, 0, -c,
                                0, 0, -c, 0);
-        objects.push_back(new Quadrics(paraboloid, vec3(-0.2, 0.0, 0.2), 0.2, vec3(-0.2, -0.0, 0.2), material02));
+        objects.push_back(new Quadrics(paraboloid, vec3(-0.2, 0.0, 0.2), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
 
         //objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material02));
         objects.push_back(new Sphere(vec3(0.1f, 0.2f, 0.3f), 0.1f, material01));
+        //objects.push_back(new ConvexPolyhedron());
     }
 
     void render(std::vector<vec4> &image) {
