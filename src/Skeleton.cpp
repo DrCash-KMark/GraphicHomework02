@@ -213,7 +213,7 @@ struct ConvexPolyhedron : public Intersectable {
     static const int objFaces = 12;
     std::vector<vec3> v;
     std::vector<int> planes;
-    //Material portal;
+    Material *portal = new ReflectiveMaterial(vec3(0, 0, 0), vec3(1, 1, 1));
 public:
     ConvexPolyhedron() {
         v = {vec3(0, 0.618, 1.618), vec3(0, -0.618, 1.618), vec3(0, -0.618, -1.618),
@@ -261,28 +261,27 @@ public:
                     hit.t = t;
                     hit.normal = normalize(normal);
                     hit.position = intersectPoint;
-                    hit.material = material;
+                    hit.material = portal;
+
+                    if (length(cross(p2 - p1, hit.position - p1)) / length(p2 - p1) < 0.1) {
+                        hit.material = material;
+                    }
+                    if (length(cross(p3 - p2, hit.position - p2)) / length(p3 - p2) < 0.1) {
+                        hit.material = material;
+                    }
+                    if (length(cross(p4 - p3, hit.position - p3)) / length(p4 - p3) < 0.1) {
+                        hit.material = material;
+                    }
+                    if (length(cross(p5 - p4, hit.position - p4)) / length(p5 - p4) < 0.1) {
+                        hit.material = material;
+                    }
+                    if (length(cross(p1 - p5, hit.position - p5)) / length(p1 - p5) < 0.1) {
+                        hit.material = material;
+                    }
                 }
             }
-
-            if (length(cross(p2 - p1, hit.position - p1)) / length(p2 - p1) < 0.1) {
-                return hit;
-            }
-            if (length(cross(p3 - p2, hit.position - p2)) / length(p3 - p2) < 0.1) {
-                return hit;
-            }
-            if (length(cross(p4 - p3, hit.position - p3)) / length(p4 - p3) < 0.1) {
-                return hit;
-            }
-            if (length(cross(p5 - p4, hit.position - p4)) / length(p5 - p4) < 0.1) {
-                return hit;
-            }
-            if (length(cross(p1 - p5, hit.position - p5)) / length(p1 - p5) < 0.1) {
-                return hit;
-            }
         }
-        Hit portal;
-        return portal;
+        return hit;
     }
 
 };
@@ -342,22 +341,19 @@ public:
         vec3 lightDirection(1, 1, 1), Le(2, 2, 2);
         lights.push_back(new Light(lightDirection, Le));
 
-        vec3 kd(0.3f, 0.2f, 0.1f), ks(2, 2, 2);
-        Material *material01 = new RoughMaterial(kd, ks, 50);
         Material *material02 = new ReflectiveMaterial(N, KAPPA);
 
         /*
          * need to learn how to make parameters
          */
-        float a = 1.5, b = 2.5, c = 0.5;
+        float a = 1.5, b = 4.5, c = 0.5;
         mat4 paraboloid = mat4(a, 0, 0, 0,
                                0, b, 0, 0,
                                0, 0, 0, -c,
                                0, 0, -c, 0);
         objects.push_back(new Quadrics(paraboloid, vec3(0.0, 0.0, 0.0), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
 
-        //objects.push_back(new Sphere(vec3(0.2f, 0.1f, 0.4f), 0.1f, material01));
-        //objects.push_back(new Sphere(vec3(-0.1f, -0.2f, -0.3f), 0.1f, material01));
+
         objects.push_back(new ConvexPolyhedron());
     }
 
@@ -397,9 +393,9 @@ public:
     }
 
     vec3 trace(Ray ray, int depth = 0) {
-        if (depth > 5) return La;
+        if (depth > 5) { return La; }
         Hit hit = firstIntersect(ray);
-        if (hit.t < 0) return La;
+        if (hit.t < 0) { return La; }
 
         vec3 outRadiance(0, 0, 0);
         if (hit.material->type == ROUGH) {
@@ -436,11 +432,28 @@ public:
         return outRadiance;
     }
 
-    /*vec3 directLight(Hit hit, Ray ray) {
+    /*
+     TODO
+
+        vec3 directLight(Hit hit, Ray ray) {
         vec3 outRadiance(0, 0, 0);
-        vec3 shadedPoint=hit.position+hit.normal*epsilon;
+        vec3 shadedPoint = hit.position + hit.normal * epsilon;
         for (Light *light : lights) {
-            vec3 lightDir=normalize()
+            vec3 lightDir = normalize(light->getPosition() - shadedPoint);
+            Ray shadowRay(shadedPoint, lightDir);
+            Hit shadowHit = firstIntersect(shadowRay);
+            if (shadowHit.t < 0 || shadowHit.t > length(light->getPosition() - shadedPoint)) {
+                float cosTheta = dot(hit.normal, lightDir);
+                if (cosTheta > 0) {
+                    outRadiance = outRadiance + light->getRadiance(hit.position) * hit.material->kd * cosTheta;
+                    vec3 halfWay = normalize(-ray.dir + lightDir);
+                    float cosDelta = dot(hit.normal, halfWay);
+                    if (cosDelta > 0) {
+                        outRadiance = outRadiance + light->getRadiance(hit.position) * hit.material->ks *
+                                                    powf(cosDelta, hit.material->shininess);
+                    }
+                }
+            }
         }
     }*/
 
