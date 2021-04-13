@@ -134,18 +134,18 @@ struct Quadrics : public Intersectable {
 
         float t1 = (-b + sqrt_discr) / 2.0f / a;
         vec3 p1 = ray.start + ray.dir * t1;
-        float dp1 = sqrtf(pow(pointOfSphare.x - p1.x, 2) +
-                          pow(pointOfSphare.y - p1.y, 2) +
-                          pow(pointOfSphare.z - p1.z, 2)); //distance of point1
+        float dp1 = sqrtf(powf(pointOfSphare.x - p1.x, 2) +
+                          powf(pointOfSphare.y - p1.y, 2) +
+                          powf(pointOfSphare.z - p1.z, 2)); //distance of point1
         if (dp1 > radius) {
             t1 = -1;
         }
 
-        float t2 = (-b + sqrt_discr) / 2.0f / a;
-        vec3 p2 = ray.start + ray.dir * t1;
-        float dp2 = sqrtf(pow(pointOfSphare.x - p2.x, 2) +
-                          pow(pointOfSphare.y - p2.y, 2) +
-                          pow(pointOfSphare.z - p2.z, 2)); //distance of point2
+        float t2 = (-b - sqrt_discr) / 2.0f / a;
+        vec3 p2 = ray.start + ray.dir * t2;
+        float dp2 = sqrtf(powf(pointOfSphare.x - p2.x, 2) +
+                          powf(pointOfSphare.y - p2.y, 2) +
+                          powf(pointOfSphare.z - p2.z, 2)); //distance of point2
         if (dp2 > radius) {
             t2 = -1;
         }
@@ -153,19 +153,29 @@ struct Quadrics : public Intersectable {
         if (t1 <= 0 && t2 <= 0) {
             return hit;
         }
-        if (t1 <= 0) {
+        else if (t1 <= 0) {
             hit.t = t2;
-        } else if (t2 <= 0) {
-            hit.t = t1;
-        } else if (t2 < t1) {
-            hit.t = t2;
-        } else {
+        }
+        else if (t2 <= 0) {
             hit.t = t1;
         }
+        else if (t2 < t1) {
+            hit.t = t2;
+        }
+        else {
+            hit.t = t1;
+        }
+
         hit.position = start + ray.dir * hit.t;
         hit.normal = normalize(gradf(hit.position));
         hit.position = hit.position + translation;
         hit.material = material;
+
+        if (dot(hit.normal, ray.dir) >= 0) {
+            hit.normal = hit.normal * -1;
+        }
+        hit.material = material;
+
         return hit;
     }
 
@@ -330,15 +340,16 @@ public:
         /*
          * need to learn how to make parameters
          */
-        float a = 1.5, b = -2.5, c = 0.5;
+        float a = 1.5, b = 2.5, c = 0.5;
         mat4 paraboloid = mat4(a, 0, 0, 0,
                                0, b, 0, 0,
                                0, 0, 0, -c,
                                0, 0, -c, 0);
-        objects.push_back(new Quadrics(paraboloid, vec3(-0.2, 0.0, 0.2), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
+        objects.push_back(new Quadrics(paraboloid, vec3(0.0, 0.0, 0.0), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
 
         //objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material02));
-        objects.push_back(new Sphere(vec3(0.1f, 0.2f, 0.3f), 0.1f, material01));
+        objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material01));
+        objects.push_back(new Sphere(vec3(-0.1f, -0.2f, -0.3f), 0.1f, material01));
         //objects.push_back(new ConvexPolyhedron());
     }
 
