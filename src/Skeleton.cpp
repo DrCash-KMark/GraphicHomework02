@@ -103,6 +103,35 @@ public:
     virtual Hit intersect(const Ray &ray) = 0;
 };
 
+struct Sphere : public Intersectable {
+    vec3 center;
+    float radius;
+public:
+    Sphere(const vec3 &_center, float _radius, Material *_material) {
+        center = _center;
+        radius = _radius;
+        material = _material;
+    }
+
+    Hit intersect(const Ray &ray) {
+        Hit hit;
+        vec3 dist = ray.start - center;
+        float a = dot(ray.dir, ray.dir);
+        float b = dot(dist, ray.dir) * 2.0f;
+        float c = dot(dist, dist) - radius * radius;
+        float discr = b * b - 4.0f * a * c;
+        if (discr < 0) return hit;
+        float sqrt_discr = sqrtf(discr);
+        float t1 = (-b + sqrt_discr) / 2.0f / a;    // t1 >= t2 for sure
+        float t2 = (-b - sqrt_discr) / 2.0f / a;
+        if (t1 <= 0) return hit;
+        hit.t = (t2 > 0) ? t2 : t1;
+        hit.position = ray.start + ray.dir * hit.t;
+        hit.normal = (hit.position - center) * (1.0f / radius);
+        hit.material = material;
+        return hit;
+    }
+};
 
 struct Quadrics : public Intersectable {
     mat4 Q;
@@ -182,35 +211,6 @@ struct Quadrics : public Intersectable {
 
 };
 
-struct Sphere : public Intersectable {
-    vec3 center;
-    float radius;
-public:
-    Sphere(const vec3 &_center, float _radius, Material *_material) {
-        center = _center;
-        radius = _radius;
-        material = _material;
-    }
-
-    Hit intersect(const Ray &ray) {
-        Hit hit;
-        vec3 dist = ray.start - center;
-        float a = dot(ray.dir, ray.dir);
-        float b = dot(dist, ray.dir) * 2.0f;
-        float c = dot(dist, dist) - radius * radius;
-        float discr = b * b - 4.0f * a * c;
-        if (discr < 0) return hit;
-        float sqrt_discr = sqrtf(discr);
-        float t1 = (-b + sqrt_discr) / 2.0f / a;    // t1 >= t2 for sure
-        float t2 = (-b - sqrt_discr) / 2.0f / a;
-        if (t1 <= 0) return hit;
-        hit.t = (t2 > 0) ? t2 : t1;
-        hit.position = ray.start + ray.dir * hit.t;
-        hit.normal = (hit.position - center) * (1.0f / radius);
-        hit.material = material;
-        return hit;
-    }
-};
 
 struct ConvexPolyhedron : public Intersectable {
     //TODO
@@ -219,6 +219,7 @@ struct ConvexPolyhedron : public Intersectable {
     int planes[objFaces * 3];//12*5*/
     std::vector<vec3> v;
     std::vector<int> planes;
+    //Material portal;
 public:
     ConvexPolyhedron() {
         //no better idea in the night
@@ -229,13 +230,11 @@ public:
              vec3(1, 1, 1), vec3(-1, 1, 1), vec3(-1, -1, 1), vec3(1, -1, 1),
              vec3(1, -1, -1), vec3(1, 1, -1), vec3(-1, 1, -1), vec3(-1, -1, -1)};
         planes = {
-                1, 2, 16, 5, 13, 1, 13, 9, 10, 14,
-                1, 14, 6, 15, 2, 2, 15, 11, 12, 16,
-                3, 4, 18, 8, 17, 3, 17, 12, 11, 20,
-                3, 20, 7, 19, 4, 19, 10, 9, 18, 4,
-                16, 12, 17, 8, 5, 5, 8, 18, 9, 13,
-                14, 10, 19, 7, 6, 6, 7, 20, 11, 15
+                1, 2, 16, 5, 13,    1, 13, 9, 10, 14,   1, 14, 6, 15, 2,    2, 15, 11, 12, 16,
+                3, 4, 18, 8, 17,    3, 17, 12, 11, 20,  3, 20, 7, 19, 4,    19, 10, 9, 18, 4,
+                16, 12, 17, 8, 5,    5, 8, 18, 9, 13,   14, 10, 19, 7, 6,    6, 7, 20, 11, 15
         };
+        material=new RoughMaterial(vec3(0.3f, 0.2f, 0.1f), vec3(2, 2, 2),50);
     }
 
     void getObjPlane(int i, float scale, vec3 p, vec3 normal) {
@@ -247,7 +246,41 @@ public:
         p = p1 * scale + vec3(0, 0, 0);//we do not need to translat it
     }
 
-    Hit intersect(const Ray &ray) {
+
+    Hit intersect(const Ray& ray) {
+        Hit hit;
+        for (int i = 0; i < 12; i++) {
+
+            vec3 p1 = v[planes[5 * i] - 1], p2 = v[planes[5 * i + 1] - 1], p3 = v[planes[5 * i + 2] - 1];
+            vec3 normal = cross(p2 - p1, p3 - p1);
+            if (dot(p1, normal) < 0) normal = -normal;
+            vec3 point = p1;
+            float t = abs(dot(normal, ray.dir))>epsilon? dot(point - ray.start, normal)/ dot(normal, ray.dir): -1;
+            if (t>epsilon && (hit.t>t || hit.t<=0)) {
+                vec3 intersectPoint = ray.start + ray.dir * t;
+                bool inside = true;
+                for (int j = 0; j < 12; j++) {
+                    if (j != i) {
+                        p1 = v[planes[5 * j] - 1]; p2 = v[planes[5 * j + 1] - 1]; p3 = v[planes[5 * j + 2] - 1];
+                        vec3 normalOther = cross(p2 - p1, p3 - p1);
+                        if (dot(normalOther, intersectPoint - p1) > 0) {
+                            inside = false;
+                            break;
+                        }
+
+                    }
+                }
+                if (inside) {
+                    hit.t = t;
+                    hit.normal = normalize(normal);
+                    hit.position = intersectPoint;
+                    hit.material = material;
+                }
+            }
+        }
+        return hit;
+    }
+    /*Hit intersect(const Ray &ray) {
         Hit hit;
         for (int i = 0; i < objFaces; ++i) {
             vec3 p1, normal;
@@ -274,7 +307,7 @@ public:
             }
         }
         return hit;
-    }
+    }*/
 
 };
 
@@ -325,7 +358,7 @@ class Scene {
     vec3 La; //ambient light
 public:
     void build() {
-        vec3 eye = vec3(0, 0, 2), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
+        vec3 eye = vec3(5, 0, 1), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
         float fov = 45 * M_PI / 180;
         camera.set(eye, lookat, vup, fov);
 
@@ -347,10 +380,9 @@ public:
                                0, 0, -c, 0);
         objects.push_back(new Quadrics(paraboloid, vec3(0.0, 0.0, 0.0), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
 
-        //objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material02));
-        objects.push_back(new Sphere(vec3(0.0f, 0.0f, 0.0f), 0.1f, material01));
-        objects.push_back(new Sphere(vec3(-0.1f, -0.2f, -0.3f), 0.1f, material01));
-        //objects.push_back(new ConvexPolyhedron());
+        //objects.push_back(new Sphere(vec3(0.2f, 0.1f, 0.4f), 0.1f, material01));
+        //objects.push_back(new Sphere(vec3(-0.1f, -0.2f, -0.3f), 0.1f, material01));
+        objects.push_back(new ConvexPolyhedron());
     }
 
     void render(std::vector<vec4> &image) {
