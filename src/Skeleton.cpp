@@ -358,7 +358,7 @@ class Scene {
     vec3 La; //ambient light
 public:
     void build() {
-        vec3 eye = vec3(5, 0, 1), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
+        vec3 eye = vec3(0.5, 0, 1), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
         float fov = 45 * M_PI / 180;
         camera.set(eye, lookat, vup, fov);
 
@@ -411,8 +411,9 @@ public:
     }
 
     bool shadowIntersect(Ray ray) {    // for directional lights
-        for (Intersectable *object : objects) if (object->intersect(ray).t > 0) return true;
         return false;
+        /*for (Intersectable *object : objects) if (object->intersect(ray).t > 0) return true;
+        return false;*/
     }
 
     vec3 trace(Ray ray, int depth = 0) {
