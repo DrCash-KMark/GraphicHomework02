@@ -42,7 +42,7 @@ const float scale = 1.0f;
 float rnd() { return (float) rand() / RAND_MAX; }
 
 enum MaterialType {
-    ROUGH, REFLECTIVE
+    ROUGH, REFLECTIVE, PORTAL
 };
 
 struct Material {
@@ -181,17 +181,13 @@ struct Quadrics : public Intersectable {
 
         if (t1 <= 0 && t2 <= 0) {
             return hit;
-        }
-        else if (t1 <= 0) {
+        } else if (t1 <= 0) {
             hit.t = t2;
-        }
-        else if (t2 <= 0) {
+        } else if (t2 <= 0) {
             hit.t = t1;
-        }
-        else if (t2 < t1) {
+        } else if (t2 < t1) {
             hit.t = t2;
-        }
-        else {
+        } else {
             hit.t = t1;
         }
 
@@ -215,14 +211,11 @@ struct Quadrics : public Intersectable {
 struct ConvexPolyhedron : public Intersectable {
     //TODO
     static const int objFaces = 12;
-    /*vec3 v[20];
-    int planes[objFaces * 3];//12*5*/
     std::vector<vec3> v;
     std::vector<int> planes;
     //Material portal;
 public:
     ConvexPolyhedron() {
-        //no better idea in the night
         v = {vec3(0, 0.618, 1.618), vec3(0, -0.618, 1.618), vec3(0, -0.618, -1.618),
              vec3(0, 0.618, -1.618), vec3(1.618, 0, 0.618), vec3(-1.618, 0, 0.618),
              vec3(-1.618, 0, -0.618), vec3(1.618, 0, -0.618), vec3(0.618, 1.618, 0),
@@ -230,44 +223,38 @@ public:
              vec3(1, 1, 1), vec3(-1, 1, 1), vec3(-1, -1, 1), vec3(1, -1, 1),
              vec3(1, -1, -1), vec3(1, 1, -1), vec3(-1, 1, -1), vec3(-1, -1, -1)};
         planes = {
-                1, 2, 16, 5, 13,    1, 13, 9, 10, 14,   1, 14, 6, 15, 2,    2, 15, 11, 12, 16,
-                3, 4, 18, 8, 17,    3, 17, 12, 11, 20,  3, 20, 7, 19, 4,    19, 10, 9, 18, 4,
-                16, 12, 17, 8, 5,    5, 8, 18, 9, 13,   14, 10, 19, 7, 6,    6, 7, 20, 11, 15
+                1, 2, 16, 5, 13, 1, 13, 9, 10, 14, 1, 14, 6, 15, 2, 2, 15, 11, 12, 16,
+                3, 4, 18, 8, 17, 3, 17, 12, 11, 20, 3, 20, 7, 19, 4, 19, 10, 9, 18, 4,
+                16, 12, 17, 8, 5, 5, 8, 18, 9, 13, 14, 10, 19, 7, 6, 6, 7, 20, 11, 15
         };
-        material=new RoughMaterial(vec3(0.3f, 0.2f, 0.1f), vec3(2, 2, 2),50);
+        material = new RoughMaterial(vec3(0.3f, 0.2f, 0.1f), vec3(2, 2, 2), 50);
     }
 
-    void getObjPlane(int i, float scale, vec3 p, vec3 normal) {
-        vec3 p1 = v[planes[3 * i] - 1], p2 = v[planes[3 * i + 1] - 1], p3 = v[planes[3 * i + 2] - 1];
-        normal = cross(p2 - p1, p3 - p1);
-        if (dot(p1, normal) < 0) {
-            normal = -normal;
-        }
-        p = p1 * scale + vec3(0, 0, 0);//we do not need to translat it
-    }
-
-
-    Hit intersect(const Ray& ray) {
+    Hit intersect(const Ray &ray) {
         Hit hit;
+        vec3 p1, p2, p3, p4, p5;
+        float t = 0.0f;
         for (int i = 0; i < 12; i++) {
 
-            vec3 p1 = v[planes[5 * i] - 1], p2 = v[planes[5 * i + 1] - 1], p3 = v[planes[5 * i + 2] - 1];
+            p1 = v[planes[5 * i] - 1], p2 = v[planes[5 * i + 1] - 1];
+            p3 = v[planes[5 * i + 2] - 1];
+            p4 = v[planes[5 * i + 3] - 1];
+            p5 = v[planes[5 * i + 4] - 1];
             vec3 normal = cross(p2 - p1, p3 - p1);
             if (dot(p1, normal) < 0) normal = -normal;
             vec3 point = p1;
-            float t = abs(dot(normal, ray.dir))>epsilon? dot(point - ray.start, normal)/ dot(normal, ray.dir): -1;
-            if (t>epsilon && (hit.t>t || hit.t<=0)) {
+            t = abs(dot(normal, ray.dir)) > epsilon ? dot(point - ray.start, normal) / dot(normal, ray.dir) : -1;
+            if (t > epsilon && (hit.t > t || hit.t <= 0)) {
                 vec3 intersectPoint = ray.start + ray.dir * t;
                 bool inside = true;
                 for (int j = 0; j < 12; j++) {
                     if (j != i) {
-                        p1 = v[planes[5 * j] - 1]; p2 = v[planes[5 * j + 1] - 1]; p3 = v[planes[5 * j + 2] - 1];
-                        vec3 normalOther = cross(p2 - p1, p3 - p1);
-                        if (dot(normalOther, intersectPoint - p1) > 0) {
+                        vec3 op1 = v[planes[5 * j] - 1], op2 = v[planes[5 * j + 1] - 1], op3 = v[planes[5 * j + 2] - 1];
+                        vec3 normalOther = cross(op2 - op1, op3 - op1);
+                        if (dot(normalOther, intersectPoint - op1) > 0) {
                             inside = false;
                             break;
                         }
-
                     }
                 }
                 if (inside) {
@@ -277,37 +264,26 @@ public:
                     hit.material = material;
                 }
             }
+
+            if (length(cross(p2 - p1, hit.position - p1)) / length(p2 - p1) < 0.1) {
+                return hit;
+            }
+            if (length(cross(p3 - p2, hit.position - p2)) / length(p3 - p2) < 0.1) {
+                return hit;
+            }
+            if (length(cross(p4 - p3, hit.position - p3)) / length(p4 - p3) < 0.1) {
+                return hit;
+            }
+            if (length(cross(p5 - p4, hit.position - p4)) / length(p5 - p4) < 0.1) {
+                return hit;
+            }
+            if (length(cross(p1 - p5, hit.position - p5)) / length(p1 - p5) < 0.1) {
+                return hit;
+            }
         }
-        return hit;
+        Hit portal;
+        return portal;
     }
-    /*Hit intersect(const Ray &ray) {
-        Hit hit;
-        for (int i = 0; i < objFaces; ++i) {
-            vec3 p1, normal;
-            getObjPlane(i, scale, p1, normal);
-            float ti = abs(dot(normal, ray.dir)) > epsilon ? dot(p1 - ray.start, normal) / dot(normal, ray.dir) : -1;
-            if (ti <= epsilon || (ti > hit.t && hit.t > 0)) {
-                continue;
-            }
-            vec3 printersect = ray.start + ray.dir * ti;
-            bool outside = false;
-            for (int j = 0; j < objFaces || !outside; ++j) {
-                if (i == j) {
-                    continue;
-                }
-                vec3 p11, n;
-                getObjPlane(j, scale, p11, n);
-                if (dot(n, printersect - p11) > 0) {
-                    outside = true;
-                }
-            }
-            if (!outside) {
-                hit.t = ti;
-                hit.position = printersect;
-            }
-        }
-        return hit;
-    }*/
 
 };
 
@@ -411,9 +387,13 @@ public:
     }
 
     bool shadowIntersect(Ray ray) {    // for directional lights
+        return false;//TODO remove this after debug
+        for (Intersectable *object : objects) {
+            if (object->intersect(ray).t > 0) {
+                return true;
+            }
+        }
         return false;
-        /*for (Intersectable *object : objects) if (object->intersect(ray).t > 0) return true;
-        return false;*/
     }
 
     vec3 trace(Ray ray, int depth = 0) {
@@ -438,15 +418,31 @@ public:
 
                 }
             }
-        }
-        if (hit.material->type == REFLECTIVE) {
+        } else if (hit.material->type == REFLECTIVE) {
             vec3 reflectedDir = ray.dir - hit.normal * dot(hit.normal, ray.dir) * 2.0f;
             vec3 F = fresnel(hit.material->F0, ray.dir, hit.normal);
             outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * epsilon, reflectedDir), depth + 1) * F;
-        }
+        } /*else if (hit.material->type == PORTAL) {
+            mat4 rotM = RotationMatrix(2.0f * M_PI / 5.0f, hit.normal);
+            vec3 w3 = hit.position - hit.faceCenter;
+            vec4 w4 = vec4(w3.x, w3.y, w3.z, 1) * rotM;
+            ray.start=hit.faceCenter+ vec3(w4.x,w4.y,w4.z)+hit.normal*epsilon;
+            vec4 dir= vec4(ray.dir.x,ray.dir.y,ray.dir.z,0)*rotM;
+            ray.dir=vec3(dir.x,dir.y,dir.z);
+            ray.dir= trace(hit,ray);
+
+        }*/
 
         return outRadiance;
     }
+
+    /*vec3 directLight(Hit hit, Ray ray) {
+        vec3 outRadiance(0, 0, 0);
+        vec3 shadedPoint=hit.position+hit.normal*epsilon;
+        for (Light *light : lights) {
+            vec3 lightDir=normalize()
+        }
+    }*/
 
     void Animate(float dt) { camera.Animate(dt); }
 };
