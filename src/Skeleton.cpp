@@ -201,7 +201,7 @@ public:
                 3, 4, 18, 8, 17, 3, 17, 12, 11, 20, 3, 20, 7, 19, 4, 19, 10, 9, 18, 4,
                 16, 12, 17, 8, 5, 5, 8, 18, 9, 13, 14, 10, 19, 7, 6, 6, 7, 20, 11, 15
         };//5 per planes
-        material = new RoughMaterial(vec3(0.3f, 0.2f, 0.1f), vec3(2, 2, 2), 50);
+        material = new RoughMaterial(vec3(0.2f, 0.2f, 0.2f), vec3(2, 2, 2), 50);
     }
 
     Hit intersect(const Ray &ray) {
@@ -328,7 +328,6 @@ public:
         vec3 Le(2, 2, 2);
         lights.push_back(new Light(Le, vec3(-0.5, 0, -1)));
 
-
         Material *material02 = new ReflectiveMaterial(N, KAPPA);//gold
         float a = 6.1, b = 2.1, c = 0.2;
         mat4 paraboloid = mat4(a, 0, 0, 0,
@@ -373,9 +372,8 @@ public:
         return false;
     }
 
-
     vec3 trace(Ray ray, int depth = 0) {
-        if (depth > 1000) { return La; }
+        if (depth > 5) { return La; }
         Hit hit = firstIntersect(ray);
         if (hit.t < 0) { return La; }
 
@@ -533,6 +531,6 @@ void onMouseMotion(int pX, int pY) {
 
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
-    scene.Animate(0.1f);
+    scene.Animate(0.5f);
     glutPostRedisplay();
 }
