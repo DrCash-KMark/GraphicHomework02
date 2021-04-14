@@ -33,13 +33,8 @@
 
 const vec3 N = vec3(0.17, 0.35, 1.5);
 const vec3 KAPPA = vec3(3.1, 2.7, 1.9);
-//const vec3 F0 = ((N - 1.0f) * (N - 1.0f) + K * K) / ((N + 1.0f) * (N + 1.0f) + K * K);
 const float epsilon = 0.0001f;
 const vec3 one(1, 1, 1);
-//do i need this?
-const float scale = 1.0f;
-
-float rnd() { return (float) rand() / RAND_MAX; }
 
 enum MaterialType {
     ROUGH, REFLECTIVE, PORTAL
@@ -72,9 +67,17 @@ struct ReflectiveMaterial : Material {
     }
 };
 
+struct PortalMaterial: Material {
+    PortalMaterial() : Material(PORTAL) {
+        vec3 n(0,0,0);
+        vec3 kappa(1,1,1);
+        F0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
+    }
+};
+
 struct Hit {
     float t;
-    vec3 position, normal;
+    vec3 position, normal, faceCenter;
     Material *material;
 
     Hit() { t = -1; }
@@ -178,17 +181,13 @@ struct Quadrics : public Intersectable {
 
         return hit;
     }
-
-
 };
 
-
 struct ConvexPolyhedron : public Intersectable {
-    //TODO
     static const int objFaces = 12;
     std::vector<vec3> v;
     std::vector<int> planes;
-    Material *portal = new ReflectiveMaterial(vec3(0, 0, 0), vec3(1, 1, 1));
+    Material *portal = new PortalMaterial();//ReflectiveMaterial(vec3(0, 0, 0), vec3(1, 1, 1));
 public:
     ConvexPolyhedron() { //i am lazy to this in a better way.
         v = {vec3(0, 0.618, 1.618), vec3(0, -0.618, 1.618), vec3(0, -0.618, -1.618),
@@ -201,7 +200,7 @@ public:
                 1, 2, 16, 5, 13, 1, 13, 9, 10, 14, 1, 14, 6, 15, 2, 2, 15, 11, 12, 16,
                 3, 4, 18, 8, 17, 3, 17, 12, 11, 20, 3, 20, 7, 19, 4, 19, 10, 9, 18, 4,
                 16, 12, 17, 8, 5, 5, 8, 18, 9, 13, 14, 10, 19, 7, 6, 6, 7, 20, 11, 15
-        };
+        };//5 per planes
         material = new RoughMaterial(vec3(0.3f, 0.2f, 0.1f), vec3(2, 2, 2), 50);
     }
 
@@ -215,6 +214,7 @@ public:
             p3 = v[planes[5 * i + 2] - 1];
             p4 = v[planes[5 * i + 3] - 1];
             p5 = v[planes[5 * i + 4] - 1];
+            vec3 faceCenter = (p1 + p2 + p3 + p4 + p5) / 5.0f;
             vec3 normal = cross(p2 - p1, p3 - p1);
             if (dot(p1, normal) < 0) normal = -normal;
             vec3 point = p1;
@@ -237,6 +237,8 @@ public:
                     hit.normal = normalize(normal);
                     hit.position = intersectPoint;
                     hit.material = portal;
+
+                    hit.faceCenter = faceCenter;
 
                     if (length(cross(p2 - p1, hit.position - p1)) / length(p2 - p1) < 0.1) {
                         hit.material = material;
@@ -318,7 +320,7 @@ class Scene {
     vec3 La; //ambient light
 public:
     void build() {
-        vec3 eye = vec3(0.5, 0, 1), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
+        vec3 eye = vec3(0, 0, 1), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
         float fov = 45 * M_PI / 180;
         camera.set(eye, lookat, vup, fov);
 
@@ -328,7 +330,7 @@ public:
 
 
         Material *material02 = new ReflectiveMaterial(N, KAPPA);//gold
-        float a = 1.1, b = 4.8, c = 0.2;
+        float a = 6.1, b = 2.1, c = 0.2;
         mat4 paraboloid = mat4(a, 0, 0, 0,
                                0, b, 0, 0,
                                0, 0, 0, -c,
@@ -359,7 +361,6 @@ public:
         if (dot(ray.dir, bestHit.normal) > 0) {
             bestHit.normal = bestHit.normal * (-1);
         }
-
         return bestHit;
     }
 
@@ -374,7 +375,7 @@ public:
 
 
     vec3 trace(Ray ray, int depth = 0) {
-        if (depth > 5) { return La; }
+        if (depth > 1000) { return La; }
         Hit hit = firstIntersect(ray);
         if (hit.t < 0) { return La; }
 
@@ -399,43 +400,20 @@ public:
             vec3 reflectedDir = ray.dir - hit.normal * dot(hit.normal, ray.dir) * 2.0f;
             vec3 F = fresnel(hit.material->F0, ray.dir, hit.normal);
             outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * epsilon, reflectedDir), depth + 1) * F;
-        }/*else if (hit.material->type == PORTAL) {
+        } else if (hit.material->type == PORTAL) {
             mat4 rotM = RotationMatrix(2.0f * M_PI / 5.0f, hit.normal);
-            vec3 w3 = hit.position - hit.faceCenter;
-            vec4 w4 = vec4(w3.x, w3.y, w3.z, 1) * rotM;
-            ray.start=hit.faceCenter+ vec3(w4.x,w4.y,w4.z)+hit.normal*epsilon;
-            vec4 dir= vec4(ray.dir.x,ray.dir.y,ray.dir.z,0)*rotM;
-            ray.dir=vec3(dir.x,dir.y,dir.z);
-            ray.dir= trace(ray,depth+1);
-
-        }*/
+            vec3 v3 = hit.position - hit.faceCenter;
+            vec4 v4 = vec4(v3.x, v3.y, v3.z, 1) * rotM;
+            ray.start = hit.faceCenter + vec3(v4.x, v4.y, v4.z) + hit.normal * epsilon;
+            vec4 dir = vec4(ray.dir.x, ray.dir.y, ray.dir.z, 0) * rotM;
+            ray.dir = vec3(dir.x, dir.y, dir.z);
+            ray.dir = ray.dir-hit.normal*dot(hit.normal, ray.dir)*2.0f;
+            outRadiance=outRadiance+trace(ray,depth+1);
+        }
 
         return outRadiance;
     }
 
-
-    //TODO
-    vec3 directLight(Hit hit, Ray ray) {
-        vec3 outRadiance(0, 0, 0);
-        vec3 shadedPoint = hit.position + hit.normal * epsilon;
-        for (Light *light : lights) {
-            vec3 lightDir = normalize(light->location - shadedPoint);
-            Ray shadowRay(shadedPoint, lightDir);
-            Hit shadowHit = firstIntersect(shadowRay);
-            if (shadowHit.t < 0 || shadowHit.t > length(light->location - shadedPoint)) {
-                float cosTheta = dot(hit.normal, lightDir);
-                if (cosTheta > 0) {
-                    outRadiance = outRadiance + light->getRadiance(hit.position) * hit.material->kd * cosTheta;
-                    vec3 halfWay = normalize(-ray.dir + lightDir);
-                    float cosDelta = dot(hit.normal, halfWay);
-                    if (cosDelta > 0) {
-                        outRadiance = outRadiance + light->getRadiance(hit.position) * hit.material->ks *
-                                                    powf(cosDelta, hit.material->shininess);
-                    }
-                }
-            }
-        }
-    }
 
     void Animate(float dt) { camera.Animate(dt); }
 };
