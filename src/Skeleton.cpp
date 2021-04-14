@@ -89,6 +89,12 @@ struct Ray {
     }
 };
 
+float distance(vec3 p1, vec3 p2) {
+    return sqrtf(powf(p1.x - p2.x, 2) +
+                 powf(p1.y - p2.y, 2) +
+                 powf(p1.z - p2.z, 2));
+}
+
 vec3 fresnel(vec3 F0, vec3 v, vec3 n) {
     float cosTheata = dot(-v, n);
     vec3 one(1, 1, 1);
@@ -161,24 +167,23 @@ struct Quadrics : public Intersectable {
         if (discr < 0) return hit;
         float sqrt_discr = sqrtf(discr);
 
+        //cuttin to spheare
         float t1 = (-b + sqrt_discr) / 2.0f / a;
         vec3 p1 = ray.start + ray.dir * t1;
-        float dp1 = sqrtf(powf(pointOfSphare.x - p1.x, 2) +
-                          powf(pointOfSphare.y - p1.y, 2) +
-                          powf(pointOfSphare.z - p1.z, 2)); //distance of point1
+        float dp1 = distance(pointOfSphare, p1);
         if (dp1 > radius) {
             t1 = -1;
         }
 
+        //cuttin to spheare
         float t2 = (-b - sqrt_discr) / 2.0f / a;
         vec3 p2 = ray.start + ray.dir * t2;
-        float dp2 = sqrtf(powf(pointOfSphare.x - p2.x, 2) +
-                          powf(pointOfSphare.y - p2.y, 2) +
-                          powf(pointOfSphare.z - p2.z, 2)); //distance of point2
+        float dp2 = distance(pointOfSphare, p2);
         if (dp2 > radius) {
             t2 = -1;
         }
 
+        //selecting best t
         if (t1 <= 0 && t2 <= 0) {
             return hit;
         } else if (t1 <= 0) {
@@ -215,7 +220,7 @@ struct ConvexPolyhedron : public Intersectable {
     std::vector<int> planes;
     Material *portal = new ReflectiveMaterial(vec3(0, 0, 0), vec3(1, 1, 1));
 public:
-    ConvexPolyhedron() {
+    ConvexPolyhedron() { //i am lazy to this in a better way.
         v = {vec3(0, 0.618, 1.618), vec3(0, -0.618, 1.618), vec3(0, -0.618, -1.618),
              vec3(0, 0.618, -1.618), vec3(1.618, 0, 0.618), vec3(-1.618, 0, 0.618),
              vec3(-1.618, 0, -0.618), vec3(1.618, 0, -0.618), vec3(0.618, 1.618, 0),
@@ -234,7 +239,7 @@ public:
         Hit hit;
         vec3 p1, p2, p3, p4, p5;
         float t = 0.0f;
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < objFaces; i++) {
 
             p1 = v[planes[5 * i] - 1], p2 = v[planes[5 * i + 1] - 1];
             p3 = v[planes[5 * i + 2] - 1];
@@ -316,13 +321,23 @@ public:
 };
 
 struct Light {
-    vec3 direction;
     vec3 Le;
+    vec3 location;
 
-    Light(vec3 _direction, vec3 _Le) {
-        direction = normalize(_direction);
+    Light(vec3 _Le, vec3 _location) {
         Le = _Le;
+        location = _location;
     }
+
+    vec3 getDirection(vec3 p1) {
+        return normalize(location - p1);
+    }
+
+    vec3 getRadiance(vec3 p1) {
+        float d = distance(p1, location);
+        return Le / powf(d, 2);
+    }
+
 };
 
 
@@ -338,21 +353,17 @@ public:
         camera.set(eye, lookat, vup, fov);
 
         La = vec3(0.4f, 0.4f, 0.4f);
-        vec3 lightDirection(1, 1, 1), Le(2, 2, 2);
-        lights.push_back(new Light(lightDirection, Le));
+        vec3 Le(2, 2, 2);
+        lights.push_back(new Light(Le, vec3(0.5, 0, 1)));
 
-        Material *material02 = new ReflectiveMaterial(N, KAPPA);
 
-        /*
-         * need to learn how to make parameters
-         */
-        float a = 1.5, b = 4.5, c = 0.5;
+        Material *material02 = new ReflectiveMaterial(N, KAPPA);//gold
+        float a = 1.1, b = 4.8, c = 0.2;
         mat4 paraboloid = mat4(a, 0, 0, 0,
                                0, b, 0, 0,
                                0, 0, 0, -c,
                                0, 0, -c, 0);
         objects.push_back(new Quadrics(paraboloid, vec3(0.0, 0.0, 0.0), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
-
 
         objects.push_back(new ConvexPolyhedron());
     }
@@ -401,48 +412,46 @@ public:
         if (hit.material->type == ROUGH) {
             outRadiance = hit.material->ka * La;
             for (Light *light : lights) {
-                Ray shadowRay(hit.position + hit.normal * epsilon, light->direction);
-                float cosTheta = dot(hit.normal, light->direction);
+                Ray shadowRay(hit.position + hit.normal * epsilon, light->getDirection(hit.position));
+                float cosTheta = dot(hit.normal, light->getDirection(hit.position));
                 if (cosTheta > 0 && !shadowIntersect(shadowRay)) {    // shadow computation
-                    outRadiance = outRadiance + light->Le * hit.material->kd * cosTheta;
-                    vec3 halfway = normalize(-ray.dir + light->direction);
+                    outRadiance = outRadiance + light->getRadiance(hit.position) * hit.material->kd * cosTheta;
+                    vec3 halfway = normalize(-ray.dir + light->getDirection(hit.position));
                     float cosDelta = dot(hit.normal, halfway);
                     if (cosDelta > 0) {
                         outRadiance =
                                 outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shininess);
                     }
-
                 }
             }
         } else if (hit.material->type == REFLECTIVE) {
             vec3 reflectedDir = ray.dir - hit.normal * dot(hit.normal, ray.dir) * 2.0f;
             vec3 F = fresnel(hit.material->F0, ray.dir, hit.normal);
             outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * epsilon, reflectedDir), depth + 1) * F;
-        } /*else if (hit.material->type == PORTAL) {
+        }/*else if (hit.material->type == PORTAL) {
             mat4 rotM = RotationMatrix(2.0f * M_PI / 5.0f, hit.normal);
             vec3 w3 = hit.position - hit.faceCenter;
             vec4 w4 = vec4(w3.x, w3.y, w3.z, 1) * rotM;
             ray.start=hit.faceCenter+ vec3(w4.x,w4.y,w4.z)+hit.normal*epsilon;
             vec4 dir= vec4(ray.dir.x,ray.dir.y,ray.dir.z,0)*rotM;
             ray.dir=vec3(dir.x,dir.y,dir.z);
-            ray.dir= trace(hit,ray);
+            ray.dir= trace(ray,depth+1);
 
         }*/
 
         return outRadiance;
     }
 
-    /*
-     TODO
 
-        vec3 directLight(Hit hit, Ray ray) {
+    //TODO
+    vec3 directLight(Hit hit, Ray ray) {
         vec3 outRadiance(0, 0, 0);
         vec3 shadedPoint = hit.position + hit.normal * epsilon;
         for (Light *light : lights) {
-            vec3 lightDir = normalize(light->getPosition() - shadedPoint);
+            vec3 lightDir = normalize(light->location - shadedPoint);
             Ray shadowRay(shadedPoint, lightDir);
             Hit shadowHit = firstIntersect(shadowRay);
-            if (shadowHit.t < 0 || shadowHit.t > length(light->getPosition() - shadedPoint)) {
+            if (shadowHit.t < 0 || shadowHit.t > length(light->location - shadedPoint)) {
                 float cosTheta = dot(hit.normal, lightDir);
                 if (cosTheta > 0) {
                     outRadiance = outRadiance + light->getRadiance(hit.position) * hit.material->kd * cosTheta;
@@ -455,7 +464,7 @@ public:
                 }
             }
         }
-    }*/
+    }
 
     void Animate(float dt) { camera.Animate(dt); }
 };
