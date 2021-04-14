@@ -201,7 +201,7 @@ public:
                 3, 4, 18, 8, 17, 3, 17, 12, 11, 20, 3, 20, 7, 19, 4, 19, 10, 9, 18, 4,
                 16, 12, 17, 8, 5, 5, 8, 18, 9, 13, 14, 10, 19, 7, 6, 6, 7, 20, 11, 15
         };//5 per planes
-        material = new RoughMaterial(vec3(0.2f, 0.2f, 0.2f), vec3(2, 2, 2), 50);
+        material = new RoughMaterial(vec3(0.3f, 0.2f, 0.1f), vec3(2, 2, 2), 50);
     }
 
     Hit intersect(const Ray &ray) {
