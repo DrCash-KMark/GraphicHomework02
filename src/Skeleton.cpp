@@ -109,36 +109,6 @@ public:
     virtual Hit intersect(const Ray &ray) = 0;
 };
 
-struct Sphere : public Intersectable {
-    vec3 center;
-    float radius;
-public:
-    Sphere(const vec3 &_center, float _radius, Material *_material) {
-        center = _center;
-        radius = _radius;
-        material = _material;
-    }
-
-    Hit intersect(const Ray &ray) {
-        Hit hit;
-        vec3 dist = ray.start - center;
-        float a = dot(ray.dir, ray.dir);
-        float b = dot(dist, ray.dir) * 2.0f;
-        float c = dot(dist, dist) - radius * radius;
-        float discr = b * b - 4.0f * a * c;
-        if (discr < 0) return hit;
-        float sqrt_discr = sqrtf(discr);
-        float t1 = (-b + sqrt_discr) / 2.0f / a;    // t1 >= t2 for sure
-        float t2 = (-b - sqrt_discr) / 2.0f / a;
-        if (t1 <= 0) return hit;
-        hit.t = (t2 > 0) ? t2 : t1;
-        hit.position = ray.start + ray.dir * hit.t;
-        hit.normal = (hit.position - center) * (1.0f / radius);
-        hit.material = material;
-        return hit;
-    }
-};
-
 struct Quadrics : public Intersectable {
     mat4 Q;
     vec3 pointOfSphare;
@@ -354,7 +324,7 @@ public:
 
         La = vec3(0.4f, 0.4f, 0.4f);
         vec3 Le(2, 2, 2);
-        lights.push_back(new Light(Le, vec3(0.5, 0, 1)));
+        lights.push_back(new Light(Le, vec3(-0.5, 0, -1)));
 
 
         Material *material02 = new ReflectiveMaterial(N, KAPPA);//gold
@@ -363,7 +333,7 @@ public:
                                0, b, 0, 0,
                                0, 0, 0, -c,
                                0, 0, -c, 0);
-        objects.push_back(new Quadrics(paraboloid, vec3(0.0, 0.0, 0.0), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
+        objects.push_back(new Quadrics(paraboloid, vec3(0.0f, 0.0f, 0.0f), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
 
         objects.push_back(new ConvexPolyhedron());
     }
@@ -393,15 +363,15 @@ public:
         return bestHit;
     }
 
-    bool shadowIntersect(Ray ray) {    // for directional lights
-        return false;//TODO remove this after debug
+    bool shadowIntersect(Ray ray, float maxDistance) {
         for (Intersectable *object : objects) {
-            if (object->intersect(ray).t > 0) {
+            if (object->intersect(ray).t > 0 && length((ray.dir * object->intersect(ray).t)) < maxDistance) {
                 return true;
             }
         }
         return false;
     }
+
 
     vec3 trace(Ray ray, int depth = 0) {
         if (depth > 5) { return La; }
@@ -414,7 +384,8 @@ public:
             for (Light *light : lights) {
                 Ray shadowRay(hit.position + hit.normal * epsilon, light->getDirection(hit.position));
                 float cosTheta = dot(hit.normal, light->getDirection(hit.position));
-                if (cosTheta > 0 && !shadowIntersect(shadowRay)) {    // shadow computation
+                if (cosTheta > 0 &&
+                    !shadowIntersect(shadowRay, distance(light->location, hit.position))) {    // shadow computation
                     outRadiance = outRadiance + light->getRadiance(hit.position) * hit.material->kd * cosTheta;
                     vec3 halfway = normalize(-ray.dir + light->getDirection(hit.position));
                     float cosDelta = dot(hit.normal, halfway);
