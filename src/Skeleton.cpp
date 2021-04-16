@@ -31,10 +31,10 @@
 //=============================================================================================
 #include "framework.h"
 
-const vec3 N = vec3(0.17, 0.35, 1.5);
-const vec3 KAPPA = vec3(3.1, 2.7, 1.9);
+const vec3 N = vec3(0.17f, 0.35f, 1.5f);
+const vec3 KAPPA = vec3(3.1f, 2.7f, 1.9f);
 const float epsilon = 0.0001f;
-const vec3 one(1, 1, 1);
+const vec3 one(1.0f, 1.0f, 1.0f);
 
 enum MaterialType {
     ROUGH, REFLECTIVE, PORTAL
@@ -69,8 +69,8 @@ struct ReflectiveMaterial : Material {
 
 struct PortalMaterial: Material {
     PortalMaterial() : Material(PORTAL) {
-        vec3 n(0,0,0);
-        vec3 kappa(1,1,1);
+        vec3 n(0.0f,0.0f,0.0f);
+        vec3 kappa(1.0f,1.0f,1.0f);
         F0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
     }
 };
@@ -80,7 +80,7 @@ struct Hit {
     vec3 position, normal, faceCenter;
     Material *material;
 
-    Hit() { t = -1; }
+    Hit() { t = -1.0f; }
 };
 
 struct Ray {
@@ -100,8 +100,7 @@ float distance(vec3 p1, vec3 p2) {
 
 vec3 fresnel(vec3 F0, vec3 v, vec3 n) {
     float cosTheata = dot(-v, n);
-    vec3 one(1, 1, 1);
-    vec3 returnValue = F0 + (one - F0) * (pow(1 - cosTheata, 5));
+    vec3 returnValue = F0 + (one - F0) * (pow(1.0f - cosTheata, 5.0f));
     return returnValue;
 }
 
@@ -134,10 +133,10 @@ struct Quadrics : public Intersectable {
     Hit intersect(const Ray &ray) {
         Hit hit;
         vec3 start = ray.start - translation;
-        vec4 S(start.x, start.y, start.z, 1), D(ray.dir.x, ray.dir.y, ray.dir.z, 0);
-        float a = dot(D * Q, D), b = dot(S * Q, D) * 2, c = dot(S * Q, S);
+        vec4 S(start.x, start.y, start.z, 1.0f), D(ray.dir.x, ray.dir.y, ray.dir.z, 0.0f);
+        float a = dot(D * Q, D), b = dot(S * Q, D) * 2.0f, c = dot(S * Q, S);
         float discr = b * b - 4.0f * a * c;
-        if (discr < 0) return hit;
+        if (discr < 0.0f) return hit;
         float sqrt_discr = sqrtf(discr);
 
         //cuttin to spheare
@@ -145,7 +144,7 @@ struct Quadrics : public Intersectable {
         vec3 p1 = ray.start + ray.dir * t1;
         float dp1 = distance(pointOfSphare, p1);
         if (dp1 > radius) {
-            t1 = -1;
+            t1 = -1.0f;
         }
 
         //cuttin to spheare
@@ -153,15 +152,15 @@ struct Quadrics : public Intersectable {
         vec3 p2 = ray.start + ray.dir * t2;
         float dp2 = distance(pointOfSphare, p2);
         if (dp2 > radius) {
-            t2 = -1;
+            t2 = -1.0f;
         }
 
         //selecting best t
-        if (t1 <= 0 && t2 <= 0) {
+        if (t1 <= 0.0f && t2 <= 0.0f) {
             return hit;
-        } else if (t1 <= 0) {
+        } else if (t1 <= 0.0f) {
             hit.t = t2;
-        } else if (t2 <= 0) {
+        } else if (t2 <= 0.0f) {
             hit.t = t1;
         } else if (t2 < t1) {
             hit.t = t2;
@@ -174,8 +173,8 @@ struct Quadrics : public Intersectable {
         hit.position = hit.position + translation;
         hit.material = material;
 
-        if (dot(hit.normal, ray.dir) >= 0) {
-            hit.normal = hit.normal * -1;
+        if (dot(hit.normal, ray.dir) >= 0.0f) {
+            hit.normal = hit.normal * -1.0f;
         }
         hit.material = material;
 
@@ -187,9 +186,9 @@ struct ConvexPolyhedron : public Intersectable {
     static const int objFaces = 12;
     std::vector<vec3> v;
     std::vector<int> planes;
-    Material *portal = new PortalMaterial();//ReflectiveMaterial(vec3(0, 0, 0), vec3(1, 1, 1));
+    Material *portal = new PortalMaterial();
 public:
-    ConvexPolyhedron() { //i am lazy to this in a better way.
+    ConvexPolyhedron() {
         v = {vec3(0, 0.618, 1.618), vec3(0, -0.618, 1.618), vec3(0, -0.618, -1.618),
              vec3(0, 0.618, -1.618), vec3(1.618, 0, 0.618), vec3(-1.618, 0, 0.618),
              vec3(-1.618, 0, -0.618), vec3(1.618, 0, -0.618), vec3(0.618, 1.618, 0),
@@ -200,8 +199,8 @@ public:
                 1, 2, 16, 5, 13, 1, 13, 9, 10, 14, 1, 14, 6, 15, 2, 2, 15, 11, 12, 16,
                 3, 4, 18, 8, 17, 3, 17, 12, 11, 20, 3, 20, 7, 19, 4, 19, 10, 9, 18, 4,
                 16, 12, 17, 8, 5, 5, 8, 18, 9, 13, 14, 10, 19, 7, 6, 6, 7, 20, 11, 15
-        };//5 per planes
-        material = new RoughMaterial(vec3(0.3f, 0.2f, 0.1f), vec3(2, 2, 2), 50);
+        };
+        material = new RoughMaterial(vec3(0.3f, 0.2f, 0.1f), vec3(2.0f, 2.0f, 2.0f), 50);
     }
 
     Hit intersect(const Ray &ray) {
@@ -218,7 +217,7 @@ public:
             vec3 normal = cross(p2 - p1, p3 - p1);
             if (dot(p1, normal) < 0) normal = -normal;
             vec3 point = p1;
-            t = abs(dot(normal, ray.dir)) > epsilon ? dot(point - ray.start, normal) / dot(normal, ray.dir) : -1;
+            t = fabs(dot(normal, ray.dir)) > epsilon ? dot(point - ray.start, normal) / dot(normal, ray.dir) : -1;
             if (t > epsilon && (hit.t > t || hit.t <= 0)) {
                 vec3 intersectPoint = ray.start + ray.dir * t;
                 bool inside = true;
@@ -317,7 +316,7 @@ class Scene {
     std::vector<Intersectable *> objects;
     std::vector<Light *> lights;
     Camera camera;
-    vec3 La; //ambient light
+    vec3 La;
 public:
     void build() {
         vec3 eye = vec3(0, 0, 1), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
@@ -325,7 +324,7 @@ public:
         camera.set(eye, lookat, vup, fov);
 
         La = vec3(0.4f, 0.4f, 0.4f);
-        vec3 Le(2, 2, 2);
+        vec3 Le(0.9f, 0.9f, 0.9f);
         lights.push_back(new Light(Le, vec3(-0.5, 0, -1)));
 
         Material *material02 = new ReflectiveMaterial(N, KAPPA);//gold
@@ -341,7 +340,6 @@ public:
 
     void render(std::vector<vec4> &image) {
         for (int Y = 0; Y < windowHeight; Y++) {
-#pragma omp parallel for
             for (int X = 0; X < windowWidth; X++) {
                 vec3 color = trace(camera.getRay(X, Y));
                 image[Y * windowWidth + X] = vec4(color.x, color.y, color.z, 1);
@@ -352,7 +350,7 @@ public:
     Hit firstIntersect(Ray ray) {
         Hit bestHit;
         for (Intersectable *object : objects) {
-            Hit hit = object->intersect(ray); //  hit.t < 0 if no intersection
+            Hit hit = object->intersect(ray);
             if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t)) {
                 bestHit = hit;
             }
@@ -416,7 +414,7 @@ public:
     void Animate(float dt) { camera.Animate(dt); }
 };
 
-GPUProgram gpuProgram; // vertex and fragment shaders
+GPUProgram gpuProgram;
 Scene scene;
 
 // vertex shader in GLSL
@@ -477,7 +475,7 @@ public:
     }
 
     void Draw() {
-        glBindVertexArray(vao);    // make the vao and its vbos active playing the role of the data source
+        glBindVertexArray(vao);
         int location = glGetUniformLocation(gpuProgram.getId(), "textureUnit");
         const unsigned int textureUnit = 0;
         if (location >= 0) {
@@ -485,51 +483,48 @@ public:
             glActiveTexture(GL_TEXTURE0 + textureUnit);
             glBindTexture(GL_TEXTURE_2D, textureId);
         }
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);    // draw two triangles forming a quad
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     }
 };
 
 FullScreenTexturedQuad *fullScreenTexturedQuad;
 
-// Initialization, create an OpenGL context
+
 void onInitialization() {
     glViewport(0, 0, windowWidth, windowHeight);
     scene.build();
 
-    // copy image to GPU as a texture
+
     fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight);
 
-    // create program for the GPU
+
     gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
 }
 
-// Window has become invalid: Redraw
 void onDisplay() {
     std::vector<vec4> image(windowWidth * windowHeight);
     scene.render(image);
     fullScreenTexturedQuad->LoadTexture(image);
     fullScreenTexturedQuad->Draw();
-    glutSwapBuffers();                                    // exchange the two buffers
+    glutSwapBuffers();
 }
 
-// Key of ASCII code pressed
+
 void onKeyboard(unsigned char key, int pX, int pY) {
 }
 
-// Key of ASCII code released
+
 void onKeyboardUp(unsigned char key, int pX, int pY) {
 
 }
 
-// Mouse click event
 void onMouse(int button, int state, int pX, int pY) {
 }
 
-// Move mouse with key pressed
 void onMouseMotion(int pX, int pY) {
 }
 
-// Idle event indicating that some time elapsed: do animation here
+
 void onIdle() {
     scene.Animate(0.5f);
     glutPostRedisplay();
