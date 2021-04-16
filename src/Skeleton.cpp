@@ -331,8 +331,8 @@ public:
         float a = 6.1, b = 2.1, c = 0.2;
         mat4 paraboloid = mat4(a, 0, 0, 0,
                                0, b, 0, 0,
-                               0, 0, 0, -c,
-                               0, 0, -c, 0);
+                               0, 0, 0, (-c/2),
+                               0, 0, (-c/2), 0);
         objects.push_back(new Quadrics(paraboloid, vec3(0.0f, 0.0f, 0.0f), 0.3, vec3(0.0f, 0.0f, 0.0f), material02));
 
         objects.push_back(new ConvexPolyhedron());

@@ -105,54 +105,65 @@ set(retry_number 5)
 
 message(STATUS "Downloading...
    dst='D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-2.1.0-win32.zip'
-   timeout='none'"
+   timeout='none'
+   inactivity timeout='none'"
 )
-
+set(download_retry_codes 7 6 8 15)
+set(skip_url_list)
+set(status_code)
 foreach(i RANGE ${retry_number})
-  sleep_before_download(${i})
-
+  if(status_code IN_LIST download_retry_codes)
+    sleep_before_download(${i})
+  endif()
   foreach(url https://downloads.sourceforge.net/project/glew/glew/2.1.0/glew-2.1.0-win32.zip)
-    message(STATUS "Using src='${url}'")
+    if(NOT url IN_LIST skip_url_list)
+      message(STATUS "Using src='${url}'")
 
-    
-    
-    
-    
+      
+      
+      
+      
 
-    file(
+      file(
         DOWNLOAD
         "${url}" "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-2.1.0-win32.zip"
         SHOW_PROGRESS
         # no TIMEOUT
+        # no INACTIVITY_TIMEOUT
         STATUS status
         LOG log
         
         
-    )
+        )
 
-    list(GET status 0 status_code)
-    list(GET status 1 status_string)
+      list(GET status 0 status_code)
+      list(GET status 1 status_string)
 
-    if(status_code EQUAL 0)
-      check_file_hash(has_hash hash_is_good)
-      if(has_hash AND NOT hash_is_good)
-        message(STATUS "Hash mismatch, removing...")
-        file(REMOVE "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-2.1.0-win32.zip")
+      if(status_code EQUAL 0)
+        check_file_hash(has_hash hash_is_good)
+        if(has_hash AND NOT hash_is_good)
+          message(STATUS "Hash mismatch, removing...")
+          file(REMOVE "D:/Documents/Mark Karpati stuff/BME/04 felev/Grafika/GrafikaHF02CLion/cmake-build-debug/glew-prefix/src/glew-2.1.0-win32.zip")
+        else()
+          message(STATUS "Downloading... done")
+          return()
+        endif()
       else()
-        message(STATUS "Downloading... done")
-        return()
+        string(APPEND logFailedURLs "error: downloading '${url}' failed
+        status_code: ${status_code}
+        status_string: ${status_string}
+        log:
+        --- LOG BEGIN ---
+        ${log}
+        --- LOG END ---
+        "
+        )
+      if(NOT status_code IN_LIST download_retry_codes)
+        list(APPEND skip_url_list "${url}")
+        break()
       endif()
-    else()
-      string(APPEND logFailedURLs "error: downloading '${url}' failed
-       status_code: ${status_code}
-       status_string: ${status_string}
-       log:
-       --- LOG BEGIN ---
-       ${log}
-       --- LOG END ---
-       "
-      )
     endif()
+  endif()
   endforeach()
 endforeach()
 
